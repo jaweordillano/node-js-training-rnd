@@ -1,0 +1,11 @@
+{
+  "name": "m02-async-toolkit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node async-toolkit.test.js",
+    "timing": "node timing.js",
+    "event-loop": "node event-loop.js"
+  }
+}

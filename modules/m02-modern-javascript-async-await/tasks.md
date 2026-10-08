@@ -37,32 +37,32 @@ asynchronous code.
 
 ## Build
 
-- [ ] Build `sleep`, with its own `node:assert` self-check.
-- [ ] Build `retry(fn, { retries, delayMs })`, with its own self-check.
-- [ ] Build `withTimeout(promise, ms)`, with its own self-check, using what you researched on
+- [x] Build `sleep`, with its own `node:assert` self-check.
+- [x] Build `retry(fn, { retries, delayMs })`, with its own self-check.
+- [x] Build `withTimeout(promise, ms)`, with its own self-check, using what you researched on
       `AbortController`/timeouts.
-- [ ] Build `mapLimit(items, limit, fn)`, with its own self-check.
-- [ ] Fetch from JSONPlaceholder sequentially, then in parallel, and compare the timings.
-- [ ] Refactor a piece of callback-style `node:fs` code to promises/async-await.
+- [x] Build `mapLimit(items, limit, fn)`, with its own self-check.
+- [x] Fetch from JSONPlaceholder sequentially, then in parallel, and compare the timings.
+- [x] Refactor a piece of callback-style `node:fs` code to promises/async-await.
 
 ## Verify
 
-- [ ] All `node:assert` self-checks pass.
+- [x] All `node:assert` self-checks pass.
 - [ ] You can predict and explain, unaided, the output order of a `setTimeout`/promise/`await`
       snippet.
-- [ ] The timing comparison shows parallel beating sequential, and you can explain why.
+- [x] The timing comparison shows parallel beating sequential, and you can explain why.
 - [ ] Final self-review against every Definition of done checkbox in `brief.md`.
 
 ## Write-up
 
-- [ ] "What I built": log each toolkit function as you finish it, not all at the end.
-- [ ] "Why it's built this way (key decisions)": how you implemented `retry`/`mapLimit`, what
+- [x] "What I built": log each toolkit function as you finish it, not all at the end.
+- [x] "Why it's built this way (key decisions)": how you implemented `retry`/`mapLimit`, what
       would change if you'd fetched the other way (sequential vs parallel), and which async
       pitfall you specifically designed around.
-- [ ] "How to build it (teach it to the next trainee)": write the guide for one utility of your
+- [x] "How to build it (teach it to the next trainee)": write the guide for one utility of your
       choice.
-- [ ] "Concepts worth explaining": pick 1-2 ideas and explain each in your own words.
-- [ ] "What tripped me up": note forgotten-`await` or race-condition surprises as they happen.
-- [ ] "Checkpoint evidence": your self-checks passing, your actual timing numbers, and your
+- [x] "Concepts worth explaining": pick 1-2 ideas and explain each in your own words.
+- [x] "What tripped me up": note forgotten-`await` or race-condition surprises as they happen.
+- [x] "Checkpoint evidence": your self-checks passing, your actual timing numbers, and your
       explanation of the `setTimeout`/promise/`await` output order.
-- [ ] Close out "What I'd do differently".
+- [x] Close out "What I'd do differently".
