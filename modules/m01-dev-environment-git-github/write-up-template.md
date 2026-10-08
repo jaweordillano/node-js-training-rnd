@@ -10,7 +10,9 @@
   command line).
 - `hello-node/.gitignore` covering `node_modules`, `.env`, `*.db`, the generated Prisma client,
   `dist` and `coverage`.
-- Still to do: `.env.example`, `.nvmrc`, PR, peer review, planted merge conflict, merge.
+- `hello-node/.env.example` (placeholder only) and `hello-node/.nvmrc` pinning Node 24.
+- Three Conventional Commits on the branch; PR opened into my fork's `main`.
+- Still to do: peer review, planted merge conflict, merge.
 
 ## Why it's built this way (key decisions)
 

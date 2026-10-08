@@ -5,9 +5,9 @@ Work lives in the fork (`jaweordillano/node-js-training-rnd`), branch `feat/hell
 
 ## Criteria
 
-- [ ] Merged PR with 3+ Conventional Commits — NOT YET (2 commits so far)
+- [ ] Merged PR with 3+ Conventional Commits — PARTIAL (3 commits, PR #1 open, not merged)
 - [x] `.gitignore` covering the Node list — PASS
-- [ ] `.env.example` present — NOT YET
+- [x] `.env.example` present — PASS
 - [ ] Narrate `git revert` vs `git reset` — NOT CHECKED
 - [ ] Peer review and resolved merge conflict — NOT DONE
 
