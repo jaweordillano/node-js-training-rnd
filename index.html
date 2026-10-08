@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Node.js Developer Training</title>
+  <meta name="description" content="A four-week, build-to-teach training programme taking developers from basic programming to a typed, validated, tested REST API on Node.js.">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#introduction">Introduction</a></li>
+        <li><a href="#how-a-stage-works">How a stage works</a></li>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#repository">Repository to work with</a></li>
+        <li><a href="#modules">Modules</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Training programme</p>
+        <h1>Node.js Developer Training</h1>
+        <p class="lede">Go from basic programming to building, validating, testing and version-controlling a typed REST API on Node.js, in four weeks.</p>
+      </header>
+
+      <section id="introduction">
+        <h2><span class="num">1.</span>Introduction</h2>
+        <p>This programme is for developers who know basic programming concepts and are new to Node.js. Git, modern JavaScript, TypeScript and SQL are all taught from first principles, so you do not need them already.</p>
+        <p>The format is <strong>build-to-teach</strong>. You are not walked through the material. Instead you work toward each stage's deliverable from a brief, and you write up how you did it as you go. That write-up is what teaches the next cohort.</p>
+
+        <ul class="facts">
+          <li><strong>4 weeks</strong><span>about 4 hours a day</span></li>
+          <li><strong>10 modules</strong><span>about 80 hours</span></li>
+          <li><strong>4 gates</strong><span>Friday pass/fail checkpoints</span></li>
+          <li><strong>Free tools</strong><span>no Docker, no licences</span></li>
+        </ul>
+
+        <p>By the end you will have built a Task API with Express, SQLite, Prisma, Zod and Jest, and an independent capstone API.</p>
+
+        <div class="callout note">
+          <p class="callout-title">A note on words</p>
+          <p>A <strong>module</strong> on these pages is a training stage (M01 to M10), not a JavaScript or Node.js module. Stages M02 and M03 are where you learn what a JavaScript module is: named vs default exports, ESM vs CommonJS.</p>
+        </div>
+      </section>
+
+      <section id="how-a-stage-works">
+        <h2><span class="num">2.</span>How a stage works</h2>
+        <ol>
+          <li><strong>Read the brief.</strong> It gives the objective, scope, stack constraints, the named deliverable, a lab and a definition of done. It contains no lesson, steps or solutions.</li>
+          <li><strong>Build and write up together.</strong> Fill in the write-up while you build, not after it works.</li>
+          <li><strong>Your trainer reviews both.</strong> The question is not only "does it work?" but "could someone else learn from this?"</li>
+          <li><strong>Revise.</strong> Fix what the review finds, in the build and the write-up, before the next stage.</li>
+          <li><strong>The pair joins the content library.</strong> Your trainer decides what carries into the next cohort.</li>
+        </ol>
+        <p>Review happens at the end of every stage, not only at the end of the course.</p>
+      </section>
+
+      <section id="prerequisites">
+        <h2><span class="num">3.</span>Prerequisites</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th scope="col">You need</th><th scope="col">Detail</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Programming basics</th><td>Variables, functions, loops, conditionals and data structures in any language. Nothing Node.js-specific.</td></tr>
+              <tr><th scope="row">A laptop</th><td>Windows, macOS or Linux, where you can install developer tools, including native build tools.</td></tr>
+              <tr><th scope="row">A GitHub account</th><td>A free account is enough. Your training repos are public.</td></tr>
+              <tr><th scope="row">Time</th><td>About 4 hours a day, 5 days a week, for 4 weeks.</td></tr>
+              <tr><th scope="row">A trainer and a pair</th><td>The programme is a trainer-led cohort with pair work and peer review.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Module 1 sets up the rest of your toolchain on Day 1: VS Code, Git, Node through a version manager, Bruno and terminal basics.</p>
+      </section>
+
+      <section id="repository">
+        <h2><span class="num">4.</span>Repository to work with</h2>
+        <p>There are two repositories, and it helps to keep them apart.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th scope="col">Repository</th><th scope="col">What it is for</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row"><a href="https://github.com/strat-training/node-js-training-rnd">strat-training/node-js-training-rnd</a></th>
+                <td>The programme itself: the briefs, task checklists, write-up templates and these pages. You read from it and write up your stages in it.</td>
+              </tr>
+              <tr>
+                <th scope="row">Your own public training repo</th>
+                <td>Where your Node.js code lives. You create it in M01 and link it from the header of each write-up.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout tip">
+          <p class="callout-title">Why public?</p>
+          <p>Branch protection on private repos depends on the GitHub plan, and a public repo avoids that dependency entirely. Public training repos are the default for every module.</p>
+        </div>
+      </section>
+
+      <section id="modules">
+        <h2><span class="num">5.</span>Modules</h2>
+        <p>Work the stages in order. Later stages build on earlier ones. The Task API built in M05 carries forward through M07, M08 and M09.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Module</th>
+                <th scope="col">Title</th>
+                <th scope="col">Week · Day</th>
+                <th scope="col">Hours</th>
+                <th scope="col">Builds on</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">M01</th>
+                <td><a href="modules/m01-dev-environment-git-github/index.html">Dev Environment, Git &amp; GitHub</a> <span class="badge live">Available</span></td>
+                <td>W1 · D1</td><td>4</td><td>—</td>
+              </tr>
+              <tr>
+                <th scope="row">M02</th>
+                <td>Modern JavaScript &amp; Async/Await <span class="badge">Coming soon</span></td>
+                <td>W1 · D2-4</td><td>10</td><td>M01</td>
+              </tr>
+              <tr>
+                <th scope="row">M03</th>
+                <td>Node.js Runtime &amp; npm <span class="badge">Coming soon</span></td>
+                <td>W1 · D4-5</td><td>6</td><td>M02</td>
+              </tr>
+              <tr>
+                <th scope="row">M04</th>
+                <td>TypeScript Basics &amp; TypeScript on Node.js <span class="badge">Coming soon</span></td>
+                <td>W2 · D1-2</td><td>8</td><td>M02, M03</td>
+              </tr>
+              <tr>
+                <th scope="row">M05</th>
+                <td>Express: Routing, Middleware &amp; Error Handling <span class="badge">Coming soon</span></td>
+                <td>W2 · D3-5</td><td>12</td><td>M04</td>
+              </tr>
+              <tr>
+                <th scope="row">M06</th>
+                <td>SQL Fundamentals with SQLite <span class="badge">Coming soon</span></td>
+                <td>W3 · D1-2</td><td>6</td><td>M05</td>
+              </tr>
+              <tr>
+                <th scope="row">M07</th>
+                <td>Prisma ORM &amp; Migrations <span class="badge">Coming soon</span></td>
+                <td>W3 · D2-4</td><td>8</td><td>M05, M06</td>
+              </tr>
+              <tr>
+                <th scope="row">M08</th>
+                <td>Zod Validation &amp; Type Inference <span class="badge">Coming soon</span></td>
+                <td>W3 · D4-5</td><td>6</td><td>M07</td>
+              </tr>
+              <tr>
+                <th scope="row">M09</th>
+                <td>Integration Testing with Jest + Supertest <span class="badge">Coming soon</span></td>
+                <td>W4 · D1-2</td><td>8</td><td>M08</td>
+              </tr>
+              <tr>
+                <th scope="row">M10</th>
+                <td>Capstone Project <span class="badge">Coming soon</span></td>
+                <td>W4 · D3-5</td><td>12</td><td>M01–M09</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="site-footer">
+        <p>Node.js Developer Training. Pure HTML and CSS, no build step.</p>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>
