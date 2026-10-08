@@ -5,7 +5,10 @@
 
 ## What I built
 
-The repo you set up, the `hello-node` script, and the merged PR (link it).
+- Branch `feat/hello-node` in my fork, with a `hello-node/` folder at the repo root.
+- `hello-node/hello.js`, a script that prints a greeting (optionally for a name passed on the
+  command line).
+- Still to do: `.gitignore`, `.env.example`, `.nvmrc`, PR, peer review, planted merge conflict, merge.
 
 ## Why it's built this way (key decisions)
 
@@ -14,6 +17,11 @@ The repo you set up, the `hello-node` script, and the merged PR (link it).
   a no-direct-push rule instead?
 - How did you and your pair actually resolve the merge conflict, and would a different approach
   (merge vs rebase) have changed what happened?
+
+**My notes**
+- Did the lab inside my public fork instead of a separate repo, so the work and write-up live together.
+- Branch name `feat/hello-node` (type prefix + short description).
+- Node version manager: nvm, Node 24 LTS as pinned in the root README.
 
 ## How to build it (teach it to the next trainee)
 
@@ -28,6 +36,13 @@ and explain each in your own words.
 ## What tripped me up
 
 Anything that didn't behave the way you expected the first time.
+
+**My notes**
+- I first built the lab in a separate repo, then moved it into the fork once it was clear the work
+  belongs there.
+- Pulling `upstream/main` wiped my uncommitted write-up notes, so write them up and commit sooner.
+- Open questions for my trainer: should the write-up reach you as a PR to upstream or a link to my
+  fork? Who is my pairing partner for the review and merge-conflict exercise?
 
 ## Checkpoint evidence
 
