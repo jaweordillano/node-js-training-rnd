@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+
+# environment (commit .env.example instead)
+.env
+.env.*
+!.env.example
+
+# databases
+*.db
+
+# generated Prisma client
+generated/prisma/
+
+# build and test output
+dist/
+coverage/
+
+# OS / editor
+.DS_Store

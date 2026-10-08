@@ -8,7 +8,9 @@
 - Branch `feat/hello-node` in my fork, with a `hello-node/` folder at the repo root.
 - `hello-node/hello.js`, a script that prints a greeting (optionally for a name passed on the
   command line).
-- Still to do: `.gitignore`, `.env.example`, `.nvmrc`, PR, peer review, planted merge conflict, merge.
+- `hello-node/.gitignore` covering `node_modules`, `.env`, `*.db`, the generated Prisma client,
+  `dist` and `coverage`.
+- Still to do: `.env.example`, `.nvmrc`, PR, peer review, planted merge conflict, merge.
 
 ## Why it's built this way (key decisions)
 
