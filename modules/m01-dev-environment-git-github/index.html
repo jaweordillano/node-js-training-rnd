@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>M01 — Dev Environment, Git &amp; GitHub</title>
-  <meta name="description" content="Set up the toolchain, use the everyday Git workflow, and collaborate through GitHub pull requests.">
+  <meta name="description" content="Set up your tools, learn the everyday Git workflow, and take a change through a GitHub pull request, including a real merge conflict.">
   <link rel="stylesheet" href="../../assets/style.css">
 </head>
 <body>
@@ -15,74 +15,185 @@
       <a class="back" href="../../index.html">&larr; All modules</a>
       <h2>On this page</h2>
       <ol>
-        <li><a href="#objective">Objective</a></li>
-        <li><a href="#toolchain">Toolchain</a></li>
-        <li><a href="#git-model">The Git mental model</a></li>
-        <li><a href="#branching">Branching, merging &amp; conflicts</a></li>
-        <li><a href="#gitignore">.gitignore &amp; secrets</a></li>
-        <li><a href="#github">GitHub</a></li>
-        <li><a href="#lab">Lab</a></li>
+        <li><a href="#overview">Overview &amp; time plan</a></li>
+        <li><a href="#s1">1. Set up your tools</a></li>
+        <li><a href="#s2">2. Git, hands-on</a></li>
+        <li><a href="#s3">3. Your repo &amp; project files</a></li>
+        <li><a href="#s4">4. Branch, commit &amp; PR</a></li>
+        <li><a href="#s5">5. Merge conflict</a></li>
+        <li><a href="#s6">6. Review, merge &amp; wrap up</a></li>
         <li><a href="#check">Check your understanding</a></li>
-        <li><a href="#done">Definition of done</a></li>
-        <li><a href="#logistics">Before you start</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#done">You're done when</a></li>
         <li><a href="#reading">Further reading</a></li>
       </ol>
     </nav>
 
     <main id="main">
       <header class="doc-header">
-        <p class="eyebrow">Module M01 · Week 1 · Day 1 · 4 hours</p>
+        <p class="eyebrow">Module M01 · Week 1 · Day 1 · about 4 hours</p>
         <h1>Dev Environment, Git &amp; GitHub</h1>
-        <p class="lede">Set up the toolchain, use the everyday Git workflow, and collaborate through GitHub pull requests.</p>
+        <p class="lede">Set up your tools, learn the everyday Git workflow, and take a change through a GitHub pull request, including a real merge conflict.</p>
       </header>
 
-      <div class="callout trainer">
-        <p class="callout-title">How to use this page</p>
-        <p>This page explains the ideas you need. It does not give you the lab steps or the answers. You work out how to build the deliverable, and you write it up in <code>write-up-template.md</code> as you go. The <a href="brief.md">brief</a> is the source of truth if the two ever disagree.</p>
-      </div>
+      <section id="overview">
+        <h2>Overview &amp; time plan</h2>
+        <p><strong>Builds on:</strong> nothing. This is the first module.</p>
+        <p>By the end you will have a public GitHub repo with a <code>hello-node</code> script, merged through a pull request that has at least three Conventional Commits and a merge conflict that you resolved yourself.</p>
 
-      <section id="objective">
-        <h2><span class="num">1.</span>Objective</h2>
-        <p><strong>Builds on:</strong> nothing. This is the first stage.</p>
-        <p>By the end of the day you will have taken a change through the full branch, pull request, review and merge cycle on a public repo, including a real merge conflict that you resolved.</p>
+        <ol class="plan">
+          <li><a href="#s1">Set up your tools</a> <span class="time">45 min</span></li>
+          <li><a href="#s2">Git, hands-on</a> <span class="time">60 min</span></li>
+          <li><a href="#s3">Your repo &amp; project files</a> <span class="time">20 min</span></li>
+          <li><a href="#s4">Branch, commit &amp; PR</a> <span class="time">45 min</span></li>
+          <li><a href="#s5">Merge conflict</a> <span class="time">40 min</span></li>
+          <li><a href="#s6">Review, merge &amp; wrap up</a> <span class="time">30 min</span></li>
+        </ol>
+
         <div class="callout note">
-          <p class="callout-title">Deliverable</p>
-          <p>A merged pull request on a public repo containing a <code>hello-node</code> script, with a resolved merge conflict in its history.</p>
+          <p class="callout-title">How to read this page</p>
+          <p>Type the commands yourself. A green dashed box, <em>You should see</em>, shows what to expect. Your output may differ in small ways, such as commit hashes and version numbers. If it differs in a bigger way, stop and check <a href="#troubleshooting">Troubleshooting</a>.</p>
+        </div>
+        <div class="callout tip">
+          <p class="callout-title">Working alone</p>
+          <p>Nobody is assigned to review your work, so this module is built to be done on your own. Where a partner would normally help, the page gives you a way to do the same thing solo. If you do have someone to ask, use them.</p>
         </div>
       </section>
 
-      <section id="toolchain">
-        <h2><span class="num">2.</span>Toolchain</h2>
-        <p>Everyone on the cohort works in the same toolchain, so a problem on your machine is a problem someone else can recognise.</p>
+      <section id="s1">
+        <h2><span class="num">1.</span>Set up your tools <span class="time">45 min</span></h2>
+        <p>You need an editor, Git, a way to install Node.js, and a GitHub account. You also need to be comfortable in a terminal.</p>
+
+        <h3>1.1 Install VS Code</h3>
+        <p>Download VS Code from <a href="https://code.visualstudio.com/">code.visualstudio.com</a> and install it. It is the editor used throughout the course, and it has a built-in terminal (<em>Terminal &rarr; New Terminal</em>).</p>
+
+        <h3>1.2 Install Git</h3>
+        <div class="tabs">
+          <input type="radio" name="os-git" id="git-win" checked><label for="git-win">Windows</label>
+          <input type="radio" name="os-git" id="git-mac"><label for="git-mac">macOS</label>
+          <input type="radio" name="os-git" id="git-linux"><label for="git-linux">Linux</label>
+          <div class="tab-panel panel-win">
+            <p>Download <strong>Git for Windows</strong> from <a href="https://git-scm.com/download/win">git-scm.com/download/win</a> and run the installer. The defaults are fine. It also installs <strong>Git Bash</strong>, a terminal that behaves like the macOS and Linux ones. The commands on this page work in Git Bash.</p>
+            <p>In VS Code, open the terminal and choose <em>Git Bash</em> from the dropdown next to the <code>+</code> button.</p>
+          </div>
+          <div class="tab-panel panel-mac">
+            <p>Open Terminal and run <code>git --version</code>. If Git is missing, macOS offers to install the Xcode command-line tools. Accept, or run:</p>
+            <pre><code>xcode-select --install</code></pre>
+            <p>Or install it with <a href="https://brew.sh/">Homebrew</a>: <code>brew install git</code>.</p>
+          </div>
+          <div class="tab-panel panel-linux">
+            <p>Install Git with your package manager. For Debian and Ubuntu:</p>
+            <pre><code>sudo apt update
+sudo apt install git</code></pre>
+            <p>On Fedora use <code>sudo dnf install git</code>.</p>
+          </div>
+        </div>
+
+        <p>Now tell Git who you are and make <code>main</code> the default branch name. Use the email address on your GitHub account.</p>
+        <pre><code>git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+git config --global init.defaultBranch main</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <p>Running <code>git --version</code> prints a version number such as:</p>
+          <pre><code>git version 2.53.0</code></pre>
+          <p>Any recent 2.x version is fine.</p>
+        </div>
+
+        <h3>1.3 Install Node.js with a version manager</h3>
+        <p>A version manager installs Node.js for you and lets each project use its own version. This course uses <strong>Node.js 24 LTS</strong>. We pin that version in a file called <code>.nvmrc</code>, so anyone who clones your project knows which version it needs.</p>
+        <div class="tabs">
+          <input type="radio" name="os-node" id="node-win" checked><label for="node-win">Windows</label>
+          <input type="radio" name="os-node" id="node-mac"><label for="node-mac">macOS</label>
+          <input type="radio" name="os-node" id="node-linux"><label for="node-linux">Linux</label>
+          <div class="tab-panel panel-win">
+            <p>Install <strong>nvm-windows</strong> from its <a href="https://github.com/coreybutler/nvm-windows">releases page</a> (the installer is <code>nvm-setup.exe</code>). Then open a <em>new</em> terminal as Administrator and run:</p>
+            <pre><code>nvm install 24
+nvm use 24</code></pre>
+            <p>nvm-windows does not read <code>.nvmrc</code> for you, so you run <code>nvm use 24</code> yourself in each new terminal if the version changes. <a href="https://volta.sh/">Volta</a> is an alternative if you prefer one.</p>
+          </div>
+          <div class="tab-panel panel-mac">
+            <p>Install <strong>nvm</strong> using the install command in the <a href="https://github.com/nvm-sh/nvm#installing-and-updating">nvm README</a>. Then open a <em>new</em> terminal and run:</p>
+            <pre><code>nvm install 24
+nvm use 24</code></pre>
+            <p>If you prefer, <code>brew install fnm</code> is an alternative with similar commands.</p>
+          </div>
+          <div class="tab-panel panel-linux">
+            <p>Install <strong>nvm</strong> using the install command in the <a href="https://github.com/nvm-sh/nvm#installing-and-updating">nvm README</a>. Then open a <em>new</em> terminal and run:</p>
+            <pre><code>nvm install 24
+nvm use 24</code></pre>
+          </div>
+        </div>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>$ node --version
+v24.x.x
+$ npm --version
+11.x.x</code></pre>
+          <p>The exact numbers will differ. The node version should start with <code>v24</code>.</p>
+        </div>
+
+        <h3>1.4 Create a GitHub account and sign in from the terminal</h3>
+        <p>Create a free account at <a href="https://github.com/signup">github.com/signup</a> if you don't have one. Then install the <strong>GitHub CLI</strong> (<code>gh</code>). It handles signing in and gives you commands for pull requests.</p>
+        <div class="tabs">
+          <input type="radio" name="os-gh" id="gh-win" checked><label for="gh-win">Windows</label>
+          <input type="radio" name="os-gh" id="gh-mac"><label for="gh-mac">macOS</label>
+          <input type="radio" name="os-gh" id="gh-linux"><label for="gh-linux">Linux</label>
+          <div class="tab-panel panel-win">
+            <pre><code>winget install --id GitHub.cli</code></pre>
+            <p>Open a new terminal afterwards so the command is found.</p>
+          </div>
+          <div class="tab-panel panel-mac">
+            <pre><code>brew install gh</code></pre>
+          </div>
+          <div class="tab-panel panel-linux">
+            <p>Follow the instructions for your distribution in the <a href="https://github.com/cli/cli/blob/trunk/docs/install_linux.md">GitHub CLI install guide</a>.</p>
+          </div>
+        </div>
+        <p>Then sign in. Choose <em>GitHub.com</em>, then <em>HTTPS</em>, say yes to authenticating Git with your GitHub credentials, and sign in through the browser.</p>
+        <pre><code>gh auth login</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>$ gh auth status
+github.com
+  ✓ Logged in to github.com account your-username</code></pre>
+        </div>
+        <div class="callout note">
+          <p class="callout-title">Other ways to sign in</p>
+          <p>You can also use a credential manager or SSH keys. The GitHub CLI is the quickest for a first day, so this page uses it. The steps for SSH are in <a href="https://docs.github.com/en/authentication/connecting-to-github-with-ssh">GitHub's SSH guide</a>.</p>
+        </div>
+
+        <h3>1.5 Terminal basics</h3>
+        <p>You need six commands to move around. Try each one.</p>
         <div class="table-wrap">
           <table>
-            <thead>
-              <tr><th scope="col">Tool</th><th scope="col">Why you need it</th></tr>
-            </thead>
+            <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
             <tbody>
-              <tr><th scope="row">VS Code</th><td>The editor used through the programme, with an integrated terminal.</td></tr>
-              <tr><th scope="row">Git</th><td>Version control. Everything else on this page depends on it.</td></tr>
-              <tr><th scope="row">A Node version manager</th><td>nvm, fnm, nvm-windows or Volta. It lets you switch Node versions per project instead of living with whatever is installed system-wide.</td></tr>
-              <tr><th scope="row">A terminal</th><td>Where you run Git and Node. Know how to change directory, list files and read a path.</td></tr>
+              <tr><td><code>pwd</code></td><td>Print the folder you are in.</td></tr>
+              <tr><td><code>ls</code></td><td>List the files in this folder.</td></tr>
+              <tr><td><code>cd folder-name</code></td><td>Move into a folder. <code>cd ..</code> moves up one level.</td></tr>
+              <tr><td><code>mkdir folder-name</code></td><td>Create a folder.</td></tr>
+              <tr><td><code>cat file-name</code></td><td>Print a file's contents.</td></tr>
+              <tr><td><code>code .</code></td><td>Open the current folder in VS Code.</td></tr>
             </tbody>
           </table>
         </div>
+        <p>If <code>code .</code> isn't found, open the folder from VS Code with <em>File &rarr; Open Folder</em> instead.</p>
 
-        <h3>Pinning the Node version</h3>
-        <p>The whole cohort runs one Node version, recorded in a <code>.nvmrc</code> file at the root of the project. The version manager reads that file, so a new person who clones the project gets the same runtime as everyone else. The cohort is pinned to <strong>Node.js 24 LTS</strong>.</p>
-        <pre><code>node --version
-git --version</code></pre>
-        <p>Run both to confirm your install. Create the <code>.nvmrc</code> yourself as part of the lab.</p>
-
-        <div class="callout tip">
-          <p class="callout-title">Pick one version manager</p>
-          <p>Which one you choose matters less than that you can explain how it picks the version. Windows users usually reach for nvm-windows or Volta.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 1</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c1a"><label for="c1a"><code>git --version</code> prints a version.</label></li>
+            <li><input type="checkbox" id="c1b"><label for="c1b"><code>node --version</code> starts with <code>v24</code>.</label></li>
+            <li><input type="checkbox" id="c1c"><label for="c1c"><code>gh auth status</code> says you're logged in.</label></li>
+            <li><input type="checkbox" id="c1d"><label for="c1d">You can open a terminal in VS Code.</label></li>
+          </ul>
         </div>
       </section>
 
-      <section id="git-model">
-        <h2><span class="num">3.</span>The Git mental model</h2>
-        <p>Most Git confusion comes from not knowing which of three places a change is in. Files move through them in one direction.</p>
+      <section id="s2">
+        <h2><span class="num">2.</span>Git, hands-on <span class="time">60 min</span></h2>
+        <p>Git records snapshots of your project. Most confusion comes from not knowing <em>where</em> a change is, so start with the three places.</p>
 
         <figure>
           <svg viewBox="0 0 640 120" role="img" aria-labelledby="flow-title flow-desc" xmlns="http://www.w3.org/2000/svg">
@@ -103,182 +214,482 @@ git --version</code></pre>
               <text x="433" y="22" font-size="13">git commit</text>
             </g>
           </svg>
-          <figcaption>A change is edited in the working tree, staged with <code>git add</code>, and recorded with <code>git commit</code>.</figcaption>
+          <figcaption>You edit files in the working tree, choose what goes into the next snapshot with <code>git add</code> (the staging area), and record it with <code>git commit</code>.</figcaption>
         </figure>
 
-        <h3>The everyday commands</h3>
+        <h3>2.1 A practice repo</h3>
+        <p>Practise in a throwaway repo so mistakes cost nothing. Create it somewhere outside your real project.</p>
+        <ol class="steps">
+          <li>
+            <p>Make a folder and turn it into a Git repo.</p>
+            <pre><code>mkdir git-practice
+cd git-practice
+git init</code></pre>
+            <div class="expect"><p class="expect-title">You should see</p><pre><code>Initialized empty Git repository in .../git-practice/.git/</code></pre></div>
+          </li>
+          <li>
+            <p>Create a file called <code>notes.txt</code> in VS Code containing the single line <code>line one</code>. Then check where Git thinks it is.</p>
+            <pre><code>git status</code></pre>
+            <div class="expect"><p class="expect-title">You should see</p><pre><code>On branch main
+Untracked files:
+  (use "git add &lt;file&gt;..." to include in what will be committed)
+        notes.txt
+
+nothing added to commit but untracked files present (use "git add" to track)</code></pre><p>The file is in the working tree, and Git is not tracking it yet.</p></div>
+          </li>
+          <li>
+            <p>Stage the file, check again, then commit it.</p>
+            <pre><code>git add notes.txt
+git status
+git commit -m "docs: add notes"</code></pre>
+            <p>After <code>git add</code>, <code>git status</code> lists <code>notes.txt</code> under <em>Changes to be committed</em>. That means it is in the staging area. After the commit, it is in the history.</p>
+          </li>
+          <li>
+            <p>See your history.</p>
+            <pre><code>git log --oneline</code></pre>
+            <div class="expect"><p class="expect-title">You should see</p><pre><code>586d019 docs: add notes</code></pre><p>Your hash, the seven characters at the start, will be different.</p></div>
+          </li>
+        </ol>
+
+        <h3>2.2 Looking at and undoing changes</h3>
+        <ol class="steps">
+          <li>
+            <p>Add a second line, <code>line two</code>, to <code>notes.txt</code> and save. See exactly what changed.</p>
+            <pre><code>git diff</code></pre>
+            <div class="expect"><p class="expect-title">You should see</p><pre><code>diff --git a/notes.txt b/notes.txt
+--- a/notes.txt
++++ b/notes.txt
+@@ -1 +1,2 @@
+ line one
++line two</code></pre><p>Lines starting with <code>+</code> were added and lines starting with <code>-</code> were removed.</p></div>
+          </li>
+          <li>
+            <p>Throw that change away with <code>git restore</code>.</p>
+            <pre><code>git restore notes.txt
+cat notes.txt</code></pre>
+            <p>The file is back to just <code>line one</code>. If you had staged it first, <code>git restore --staged notes.txt</code> would unstage it without losing your edit.</p>
+            <div class="callout warn"><p class="callout-title">Restore can't be undone</p><p>An uncommitted change that you restore is gone. Commit or stash anything you want to keep.</p></div>
+          </li>
+          <li>
+            <p>Set work aside with <code>git stash</code>. Add a line <code>work in progress</code>, then:</p>
+            <pre><code>git stash
+cat notes.txt
+git stash pop
+cat notes.txt</code></pre>
+            <p>The stash hides your uncommitted edit so you have a clean tree, and <code>git stash pop</code> brings it back. Use it when you need to switch tasks before you are ready to commit. Run <code>git restore notes.txt</code> to drop the line again.</p>
+          </li>
+        </ol>
+
+        <h3>2.3 Undoing a commit: <code>revert</code> vs <code>reset</code></h3>
+        <p>Both undo a commit, in very different ways.</p>
         <div class="table-wrap">
           <table>
-            <thead>
-              <tr><th scope="col">Command</th><th scope="col">What it answers</th></tr>
-            </thead>
+            <thead><tr><th scope="col"></th><th scope="col"><code>git revert</code></th><th scope="col"><code>git reset</code></th></tr></thead>
             <tbody>
-              <tr><td><code>git init</code> / <code>git clone</code></td><td>Start a repo, or copy an existing one.</td></tr>
-              <tr><td><code>git status</code></td><td>Which of the three places is each change in?</td></tr>
-              <tr><td><code>git add</code></td><td>Which changes go into the next commit?</td></tr>
-              <tr><td><code>git commit</code></td><td>Record the staged changes with a message.</td></tr>
-              <tr><td><code>git log</code></td><td>What has been recorded, and when?</td></tr>
-              <tr><td><code>git diff</code></td><td>What is different between two of the places?</td></tr>
-              <tr><td><code>git restore</code></td><td>Throw away or unstage a change.</td></tr>
-              <tr><td><code>git stash</code></td><td>Set work aside without committing it.</td></tr>
+              <tr><th scope="row">What it does</th><td>Adds a <em>new</em> commit that does the opposite of an earlier one.</td><td>Moves the branch pointer back, so later commits drop out of the history.</td></tr>
+              <tr><th scope="row">History</th><td>Kept. The bad commit and its undo both stay visible.</td><td>Rewritten. The commits you reset past disappear from the branch.</td></tr>
+              <tr><th scope="row">Safe on shared branches?</th><td>Yes. Other people can pull it normally.</td><td>No. Others who already have those commits get a diverged history.</td></tr>
+              <tr><th scope="row">Use it when</th><td>The commit is already pushed or shared.</td><td>The commit is only on your machine and you want it gone.</td></tr>
             </tbody>
           </table>
         </div>
-        <p>Practise these on a throwaway repo before you touch the real one. <code>git status</code> after every step is a good habit while the model is new.</p>
 
-        <h3>Undoing things: <code>revert</code> vs <code>reset</code></h3>
-        <p>Both undo work, and they are not interchangeable. Part of your checkpoint is explaining the difference out loud. To prepare, compare them on three questions:</p>
-        <ul>
-          <li>What does each one do to the commit history?</li>
-          <li>Which one is safe on a branch other people have already pulled?</li>
-          <li>When would you reach for each?</li>
-        </ul>
-        <p>Look this up and try both in your throwaway repo. Use your own words in the write-up.</p>
-      </section>
-
-      <section id="branching">
-        <h2><span class="num">4.</span>Branching, merging &amp; conflicts</h2>
-        <p>A branch is a separate line of work. You make your change on a feature branch so <code>main</code> always stays in a good state, and you bring the change back with a merge once it has been reviewed.</p>
-
-        <h3>Merge vs rebase</h3>
-        <p>Both combine work from two branches, and they leave different histories behind. At this stage you only need the concept: one preserves the shape of what happened, the other rewrites it into a straight line. You will not be rebasing in the lab.</p>
-
-        <h3>What a conflict is</h3>
-        <p>A conflict happens when Git cannot decide for you, usually because two branches changed the same lines. Git stops and marks the file, and a person decides what the final text should be.</p>
-        <pre><code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
-the version on your branch
-=======
-the version on the other branch
-&gt;&gt;&gt;&gt;&gt;&gt;&gt; other-branch</code></pre>
-        <p>Resolving means editing the file to the text you want, removing the three marker lines, staging the file and finishing the merge.</p>
+        <p>Try both. First, <code>revert</code>:</p>
+        <pre><code>echo "line two" &gt;&gt; notes.txt
+git commit -am "docs: add line two"
+echo "oops" &gt;&gt; notes.txt
+git commit -am "docs: add oops"
+git revert --no-edit HEAD
+git log --oneline
+cat notes.txt</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>5816cf0 Revert "docs: add oops"
+c80fa8f docs: add oops
+0b2e519 docs: add line two
+586d019 docs: add notes</code></pre>
+          <p>and <code>notes.txt</code> has <code>line one</code> and <code>line two</code> only. The bad commit is still in the log, and the revert is a new commit on top.</p>
+        </div>
+        <p>Now <code>reset</code>. Make another mistake and remove it from the history entirely:</p>
+        <pre><code>echo "another oops" &gt;&gt; notes.txt
+git commit -am "docs: add another oops"
+git reset --hard HEAD~1
+git log --oneline</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <p>The "another oops" commit is gone from the log, and <code>notes.txt</code> no longer has that line.</p>
+        </div>
         <div class="callout warn">
-          <p class="callout-title">Conflicts are normal</p>
-          <p>A conflict is not a sign that something broke. You will cause one on purpose with your pair in the lab, so that the first time you see one is in a safe place.</p>
+          <p class="callout-title">Careful with <code>--hard</code></p>
+          <p><code>git reset --hard</code> also throws away uncommitted changes. Never use it on commits you have already pushed and shared. If you reset too far, <code>git reflog</code> lists where your branch has been, and <code>git reset --hard &lt;hash&gt;</code> takes you back.</p>
+        </div>
+
+        <h3>2.4 Branching and merging</h3>
+        <p>A branch is a separate line of work. You make changes on a branch so <code>main</code> stays in a good state, then bring them back with a merge.</p>
+        <pre><code>git switch -c try-branch
+echo "from the branch" &gt;&gt; notes.txt
+git commit -am "docs: add a line on a branch"
+git switch main
+git merge try-branch
+git log --oneline</code></pre>
+        <p>Because <code>main</code> had no new commits of its own, Git simply moves it forward. This is called a <em>fast-forward</em> merge. When both branches have new commits, Git creates a <em>merge commit</em> that joins them, and when both edited the same lines, it asks you to settle it. That is a conflict, and you cause one in stage 5.</p>
+
+        <h3>2.5 Merge vs rebase (concept only)</h3>
+        <p>Both combine work from two branches. <strong>Merge</strong> keeps the history as it really happened and joins the lines with a merge commit. <strong>Rebase</strong> replays your commits on top of the other branch, which gives a straight line but rewrites your commits. You only use merge in this module. Rebase comes later, once you are comfortable with history. Like <code>reset</code>, don't rebase commits that others already have.</p>
+
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 2</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c2a"><label for="c2a">You can say which of the three places a change is in by reading <code>git status</code>.</label></li>
+            <li><input type="checkbox" id="c2b"><label for="c2b">Your practice log shows a <em>Revert</em> commit, and the reset commit is gone.</label></li>
+            <li><input type="checkbox" id="c2c"><label for="c2c">You merged <code>try-branch</code> into <code>main</code>.</label></li>
+          </ul>
         </div>
       </section>
 
-      <section id="gitignore">
-        <h2><span class="num">5.</span>.gitignore &amp; secrets</h2>
-        <p>A <code>.gitignore</code> file lists what Git should never track. For a Node project it covers:</p>
+      <section id="s3">
+        <h2><span class="num">3.</span>Your repo &amp; project files <span class="time">20 min</span></h2>
+        <p>Now the real repo. It is the one you'll use for the whole course, so pick a name you'll be happy with. This page uses <code>node-training</code>.</p>
+
+        <ol class="steps">
+          <li>
+            <p>Make the folder, enter it, and initialise Git. Go up out of <code>git-practice</code> first.</p>
+            <pre><code>cd ..
+mkdir node-training
+cd node-training
+git init
+code .</code></pre>
+          </li>
+          <li>
+            <p>In VS Code, create these four files. Creating them in the editor works the same on every operating system.</p>
+            <p><code>.nvmrc</code> pins the Node version:</p>
+            <pre><code>24</code></pre>
+            <p><code>.gitignore</code> lists what Git should never track:</p>
+            <pre><code>node_modules/
+.env
+.env.test
+*.db
+src/generated/
+dist/
+coverage/</code></pre>
+            <p><code>.env.example</code> is a template for settings, committed in place of the real <code>.env</code>:</p>
+            <pre><code># Copy this file to .env and fill in real values.
+# There is nothing to configure yet.
+# PORT=3000</code></pre>
+            <p><code>README.md</code>:</p>
+            <pre><code># node-training
+
+Status: draft</code></pre>
+          </li>
+          <li>
+            <p>Commit them as your first commit.</p>
+            <pre><code>git add .
+git commit -m "chore: add project scaffolding"</code></pre>
+          </li>
+          <li>
+            <p>Create the public repo on GitHub from here and push in one go.</p>
+            <pre><code>gh repo create node-training --public --source=. --remote=origin --push</code></pre>
+            <div class="expect"><p class="expect-title">You should see</p><p>Messages ending with the repo being created, and your files at <code>https://github.com/&lt;your-username&gt;/node-training</code> when you open it in the browser.</p></div>
+          </li>
+        </ol>
+
+        <h3>Why each line of <code>.gitignore</code></h3>
         <ul>
-          <li><code>node_modules</code></li>
-          <li><code>.env</code></li>
-          <li><code>*.db</code></li>
-          <li>the generated Prisma client</li>
-          <li><code>dist</code></li>
-          <li><code>coverage</code></li>
+          <li><code>node_modules/</code>: installed packages. They are rebuilt from <code>package.json</code> and are large.</li>
+          <li><code>.env</code> and <code>.env.test</code>: real settings and secrets. Never commit them.</li>
+          <li><code>*.db</code>: local database files.</li>
+          <li><code>src/generated/</code>: code the Prisma tool generates later in the course. It is rebuilt, not written by hand.</li>
+          <li><code>dist/</code> and <code>coverage/</code>: build output and test reports. Both are rebuilt.</li>
         </ul>
-        <p>Think about why each of these should stay out of the repo. Some are rebuilt from other files, and some are private.</p>
         <div class="callout warn">
           <p class="callout-title">Never commit secrets</p>
-          <p>Once a secret is in the history it is hard to take back, and on a public repo anyone can read it. Commit a <code>.env.example</code> that lists the settings the project needs without their real values, and keep the real <code>.env</code> out of Git. There is nothing to configure yet, but the habit starts today.</p>
+          <p>On a public repo anyone can read your history, and deleting a secret from a later commit doesn't remove it from the earlier ones. That is why you commit <code>.env.example</code> with placeholder values and keep the real <code>.env</code> out of Git. If a secret ever does get committed, treat it as leaked: revoke it and create a new one.</p>
+        </div>
+
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 3</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c3a"><label for="c3a">Your repo is on GitHub and shows the four files.</label></li>
+            <li><input type="checkbox" id="c3b"><label for="c3b"><code>git status</code> says <em>nothing to commit, working tree clean</em>.</label></li>
+          </ul>
         </div>
       </section>
 
-      <section id="github">
-        <h2><span class="num">6.</span>GitHub</h2>
-        <h3>Remotes and authentication</h3>
-        <p>A <em>remote</em> is a copy of your repo hosted somewhere else, usually named <code>origin</code>. To push to it you need to prove who you are. Pick one: the GitHub CLI, a credential manager, or SSH keys.</p>
+      <section id="s4">
+        <h2><span class="num">4.</span>Branch, commit &amp; pull request <span class="time">45 min</span></h2>
 
         <h3>GitHub Flow</h3>
+        <p>This is the everyday way teams work with GitHub. The same five steps apply to every change you will make in this course.</p>
         <ol>
           <li>Branch from <code>main</code>.</li>
           <li>Commit your work on the branch.</li>
-          <li>Open a pull request.</li>
-          <li>Get a review and respond to the comments.</li>
-          <li>Merge, then delete the branch.</li>
+          <li>Open a pull request (a PR).</li>
+          <li>Get it reviewed and respond to comments.</li>
+          <li>Merge it, then delete the branch.</li>
         </ol>
-        <p>Issues are where you track the work, and a pull request is where the change is discussed before it lands. Review comments can be attached to individual lines.</p>
-
-        <div class="callout note">
-          <p class="callout-title">Public repos by convention</p>
-          <p>The programme uses public training repos for every module. Branch protection on private repos depends on the GitHub plan, and a public repo avoids that dependency entirely.</p>
-        </div>
 
         <h3>Conventional Commits</h3>
-        <p>A commit message that follows a pattern is easier to scan and easier to review. The format is a type, a colon and a short description.</p>
-        <pre><code>feat: add hello-node script
-fix: correct the greeting text
-docs: explain how to run the script
-chore: add .gitignore</code></pre>
-        <p>Your pull request needs 3 or more commits written this way.</p>
+        <p>Commit messages follow a pattern: a <strong>type</strong>, a colon, and a short description in the imperative mood. The pattern makes history easy to scan.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">Type</th><th scope="col">Use it for</th><th scope="col">Example</th></tr></thead>
+            <tbody>
+              <tr><td><code>feat</code></td><td>A new feature</td><td><code>feat: add hello-node script</code></td></tr>
+              <tr><td><code>fix</code></td><td>A bug fix</td><td><code>fix: handle a missing name</code></td></tr>
+              <tr><td><code>docs</code></td><td>Documentation only</td><td><code>docs: explain how to run it</code></td></tr>
+              <tr><td><code>chore</code></td><td>Maintenance and setup</td><td><code>chore: add .gitignore</code></td></tr>
+            </tbody>
+          </table>
+        </div>
 
-        <h3>README basics</h3>
-        <p>A README tells a stranger what the project is and how to run it. Keep it short, and write it for someone who has never seen your repo.</p>
-      </section>
-
-      <section id="lab">
-        <h2><span class="num">7.</span>Lab</h2>
-        <p><em>Goal: prove you can take a change through the full branch, PR, review and merge cycle, including resolving a real conflict.</em></p>
-
-        <h3>You do</h3>
-        <ol>
-          <li>Set up your toolchain (VS Code, Git, a Node version manager) and create the public repo.</li>
-          <li>Write the <code>hello-node</code> script on a feature branch, committing with Conventional Commits as you go.</li>
-          <li>Add <code>.gitignore</code> and <code>.env.example</code>.</li>
-          <li>Open a pull request and get a peer review from your assigned partner.</li>
-          <li>With your pair, deliberately create a merge conflict, then resolve it together.</li>
-          <li>Merge once the PR carries 3 or more Conventional Commits.</li>
+        <h3>Make the change</h3>
+        <ol class="steps">
+          <li>
+            <p>Create a feature branch. Never work directly on <code>main</code>.</p>
+            <pre><code>git switch -c feat/hello-node</code></pre>
+          </li>
+          <li>
+            <p>Create <code>hello-node.js</code> in VS Code:</p>
+            <pre><code>const name = process.argv[2] ?? "world";
+console.log(`Hello, ${name}!`);</code></pre>
+            <p><code>process.argv</code> is the list of command-line arguments, and <code>??</code> supplies a default when none is given. Run it, then commit:</p>
+            <pre><code>node hello-node.js
+node hello-node.js Ana
+git add hello-node.js
+git commit -m "feat: add hello-node script"</code></pre>
+            <div class="expect"><p class="expect-title">You should see</p><pre><code>Hello, world!
+Hello, Ana!</code></pre></div>
+          </li>
+          <li>
+            <p>In <code>README.md</code>, change the status line to <code>Status: runs with node hello-node.js</code>, then commit.</p>
+            <pre><code>git commit -am "docs: say how to run the script"</code></pre>
+          </li>
+          <li>
+            <p>Add a line at the end of <code>README.md</code>: <code>Run: node hello-node.js [name]</code>, then commit.</p>
+            <pre><code>git commit -am "docs: add usage line"
+git log --oneline</code></pre>
+            <div class="expect"><p class="expect-title">You should see</p><p>Three new commits on top of <code>chore: add project scaffolding</code>, all with a Conventional Commits type.</p></div>
+          </li>
+          <li>
+            <p>Push the branch and open a pull request.</p>
+            <pre><code>git push -u origin feat/hello-node
+gh pr create --title "feat: add hello-node script" --body "Adds a hello-node script and a usage line in the README."</code></pre>
+            <p>You can also open your repo on GitHub and click <em>Compare &amp; pull request</em>. Leave this PR open. You merge it in stage 6.</p>
+            <div class="expect"><p class="expect-title">You should see</p><p>A link to the new PR. On GitHub the <em>Commits</em> tab lists your three commits.</p></div>
+          </li>
         </ol>
 
-        <h3>You build and capture</h3>
-        <ul>
-          <li>The merged PR link.</li>
-          <li><code>.gitignore</code> and <code>.env.example</code> present in the repo.</li>
-          <li>Your own explanation of <code>git revert</code> vs <code>git reset</code>.</li>
-        </ul>
-        <div class="callout tip">
-          <p class="callout-title">Write as you go</p>
-          <p>Fill in <code>write-up-template.md</code> while you work, not after the PR is merged. Note what tripped you up while it is still fresh. Write it for the next trainee, who will follow it with no trainer to ask.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 4</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c4a"><label for="c4a">An open PR on GitHub with 3 commits.</label></li>
+            <li><input type="checkbox" id="c4b"><label for="c4b"><code>node hello-node.js Ana</code> prints <code>Hello, Ana!</code>.</label></li>
+          </ul>
         </div>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>Merge conflict <span class="time">40 min</span></h2>
+        <p>A conflict happens when two branches change the same lines and Git can't pick for you. On a team it happens when two people work at once. Here you play both people, so the first conflict you meet is a safe one.</p>
+
+        <h3>5.1 Make a competing change</h3>
+        <p>While your PR is open, a second change lands on <code>main</code> that edits the same status line.</p>
+        <ol class="steps">
+          <li>
+            <p>Go back to <code>main</code> and branch off it.</p>
+            <pre><code>git switch main
+git switch -c docs/readme-status</code></pre>
+          </li>
+          <li>
+            <p>In <code>README.md</code>, change <code>Status: draft</code> to <code>Status: work in progress</code>, then commit and push.</p>
+            <pre><code>git commit -am "docs: mark status as in progress"
+git push -u origin docs/readme-status</code></pre>
+          </li>
+          <li>
+            <p>Open a PR for it and merge it. This is a normal, small PR, so <em>Create a merge commit</em> is fine.</p>
+            <pre><code>gh pr create --fill
+gh pr merge --merge --delete-branch</code></pre>
+            <p>You can do the same on GitHub in the browser. Then update your local <code>main</code>:</p>
+            <pre><code>git switch main
+git pull</code></pre>
+          </li>
+        </ol>
+
+        <h3>5.2 Meet the conflict</h3>
+        <p>Your open PR changes the same line, so it is now out of date. Bring <code>main</code> into your feature branch to see it.</p>
+        <pre><code>git switch feat/hello-node
+git merge main</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Auto-merging README.md
+CONFLICT (content): Merge conflict in README.md
+Automatic merge failed; fix conflicts and then commit the result.</code></pre>
+          <p>and <code>git status</code> lists <code>README.md</code> under <em>Unmerged paths</em>.</p>
+        </div>
+        <p>Open <code>README.md</code>. Git has marked the clash:</p>
+        <pre><code># node-training
+
+&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+Status: runs with node hello-node.js
+Run: node hello-node.js [name]
+=======
+Status: work in progress
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; main</code></pre>
+        <p>The part between <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</code> and <code>=======</code> is your branch, and the part below it up to <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; main</code> is the other side. Git won't guess which to keep, and it might need both.</p>
+
+        <h3>5.3 Resolve it</h3>
+        <ol class="steps">
+          <li>
+            <p>Edit the file to the text you want. Here, keep the status from <code>main</code> and your usage line, and delete all three marker lines (<code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>=======</code>, <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>):</p>
+            <pre><code># node-training
+
+Status: work in progress. Runs with node hello-node.js
+Run: node hello-node.js [name]</code></pre>
+          </li>
+          <li>
+            <p>Tell Git it's resolved by staging the file, then finish the merge.</p>
+            <pre><code>git add README.md
+git commit --no-edit
+git push</code></pre>
+            <div class="expect"><p class="expect-title">You should see</p><p>A merge commit in <code>git log --oneline --graph</code> that joins the two lines of work. On GitHub, your PR now says <em>This branch has no conflicts with the base branch</em>.</p></div>
+          </li>
+        </ol>
+        <div class="callout tip">
+          <p class="callout-title">Check before you commit</p>
+          <p>Search the file for <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> before you commit. Leftover markers are the most common conflict mistake. If you get lost, <code>git merge --abort</code> returns you to before the merge.</p>
+        </div>
+
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 5</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c5a"><label for="c5a">You saw the <code>CONFLICT</code> message and the markers.</label></li>
+            <li><input type="checkbox" id="c5b"><label for="c5b">The final <code>README.md</code> has no markers.</label></li>
+            <li><input type="checkbox" id="c5c"><label for="c5c">A merge commit is in your branch history, and the PR is mergeable.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s6">
+        <h2><span class="num">6.</span>Review, merge &amp; wrap up <span class="time">30 min</span></h2>
+
+        <h3>6.1 Review your PR</h3>
+        <p>A review is a second look before code reaches <code>main</code>. If you have someone to ask, send them the PR link and ask them to review it. If you are working alone, review it yourself, as if it were someone else's.</p>
+        <ol class="steps">
+          <li>Open the PR on GitHub and go to the <em>Files changed</em> tab.</li>
+          <li>Hover a line and click the <code>+</code> to leave a comment. Leave at least one, for example a question or a suggestion about wording.</li>
+          <li>Click <em>Review changes</em>, add a summary, and choose <em>Comment</em>. GitHub doesn't let you approve your own PR, so a comment is the right choice.</li>
+        </ol>
+
+        <h3>6.2 Merge it</h3>
+        <p>Your PR needs 3 or more Conventional Commits, and the merge style matters here.</p>
+        <div class="callout warn">
+          <p class="callout-title">Choose "Create a merge commit"</p>
+          <p>The <em>Squash and merge</em> option folds all your commits into one, which erases the history this module asks for. Choose <em>Create a merge commit</em> instead.</p>
+        </div>
+        <pre><code>gh pr merge --merge --delete-branch</code></pre>
+        <p>You can also click the green button on GitHub. Then bring your local copy up to date and tidy up.</p>
+        <pre><code>git switch main
+git pull
+git log --oneline --graph</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <p>Your three Conventional Commits, the conflict-resolving merge commit and the merge of the PR in the history on <code>main</code>.</p>
+        </div>
+
+        <h3>6.3 Wrap up</h3>
+        <ul>
+          <li>Check that <code>.gitignore</code> and <code>.env.example</code> show on GitHub, and that no <code>.env</code> file is committed.</li>
+          <li>Say the difference between <code>git revert</code> and <code>git reset</code> out loud, without looking, in your own words.</li>
+          <li>Keep this repo. You'll keep working in it for the rest of the course.</li>
+        </ul>
       </section>
 
       <section id="check">
-        <h2><span class="num">8.</span>Check your understanding</h2>
-        <p>Try to answer each question aloud before you open it.</p>
+        <h2>Check your understanding</h2>
+        <p>Answer each one in your head, then open it to compare.</p>
         <details>
           <summary>Where is a change after you edit a file but before <code>git add</code>?</summary>
-          <p>Think about the three places in the diagram, and how <code>git status</code> would describe the file.</p>
+          <p>In the working tree only. <code>git status</code> lists it under <em>Changes not staged for commit</em>. It is not in the staging area or the history yet.</p>
         </details>
         <details>
-          <summary>Why do you work on a feature branch instead of <code>main</code>?</summary>
-          <p>Think about what a reviewer and the rest of the team see on <code>main</code>.</p>
+          <summary>Why work on a feature branch instead of <code>main</code>?</summary>
+          <p>So <code>main</code> always holds work that has been reviewed and works. A branch lets you experiment, and the PR gives others a chance to review before anything lands on <code>main</code>.</p>
         </details>
         <details>
           <summary>Why is <code>.env.example</code> committed when <code>.env</code> is not?</summary>
-          <p>Think about what a new person needs to run the project, and what must never be public.</p>
+          <p>A new person needs to know which settings the project expects, and the example shows that without any real values. The real <code>.env</code> holds secrets, and anything committed to a public repo is public for good.</p>
         </details>
         <details>
           <summary>What do you do when Git reports a conflict?</summary>
-          <p>Think about who decides the final text, and what has to be removed from the file.</p>
+          <p>Open the marked file, decide what the final text should be, delete the three marker lines, run <code>git add</code> on the file, and commit. <code>git merge --abort</code> backs out if you want to start again.</p>
         </details>
         <details>
-          <summary>Explain <code>git revert</code> vs <code>git reset</code> without notes.</summary>
-          <p>This one is yours to answer. It is part of the definition of done.</p>
+          <summary>Explain <code>git revert</code> vs <code>git reset</code>.</summary>
+          <p><code>revert</code> adds a new commit that undoes an earlier one, so history is kept and it is safe on shared branches. <code>reset</code> moves the branch back and drops commits from history, so use it only on commits that exist just on your machine.</p>
+        </details>
+        <details>
+          <summary>Why choose a merge commit over squash for this module's PR?</summary>
+          <p>Squashing folds the commits into one, so the PR wouldn't show 3 or more Conventional Commits, and the conflict-resolving merge would be lost from the history.</p>
+        </details>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <details>
+          <summary><code>git</code> or <code>node</code> says "command not found"</summary>
+          <p>Close the terminal and open a new one. A terminal only learns about newly installed tools when it starts. If it still fails, rerun the installer, and on Windows make sure you're using Git Bash.</p>
+        </details>
+        <details>
+          <summary><code>node --version</code> isn't v24</summary>
+          <p>Run <code>nvm use 24</code>. If it says 24 isn't installed, run <code>nvm install 24</code> first. On Windows, run these in a terminal opened as Administrator.</p>
+        </details>
+        <details>
+          <summary>"Please tell me who you are" or "Author identity unknown"</summary>
+          <p>Set your name and email with the <code>git config --global</code> commands from stage 1.2.</p>
+        </details>
+        <details>
+          <summary>The commit message editor opened and I can't leave it</summary>
+          <p>It is probably Vim. Press <code>Esc</code>, then type <code>:wq</code> and press Enter to save, or <code>:q!</code> to quit without saving. Using <code>-m "message"</code> avoids the editor.</p>
+        </details>
+        <details>
+          <summary><code>git push</code> is rejected or asks for a password</summary>
+          <p>Rejected with "fetch first" or "non-fast-forward" means the remote has commits you don't. Run <code>git pull</code>, resolve any conflict, then push again. If it asks for a password or fails to authenticate, run <code>gh auth login</code> again and choose HTTPS.</p>
+        </details>
+        <details>
+          <summary>The branch is called <code>master</code>, not <code>main</code></summary>
+          <p>Set <code>git config --global init.defaultBranch main</code>, then rename this repo's branch with <code>git branch -M main</code>.</p>
+        </details>
+        <details>
+          <summary>I committed on <code>main</code> by mistake</summary>
+          <p>If you haven't pushed yet, move the commits to a new branch and put <code>main</code> back:</p>
+          <pre><code>git switch -c feat/my-change
+git branch -f main origin/main</code></pre>
+        </details>
+        <details>
+          <summary>A warning about "LF will be replaced by CRLF" on Windows</summary>
+          <p>It's harmless. Git is adjusting line endings between Windows and the repo. You can ignore it for this course.</p>
+        </details>
+        <details>
+          <summary>I got lost in the middle of a conflict</summary>
+          <p>Run <code>git merge --abort</code> to return to the state before the merge, then start stage 5.2 again.</p>
         </details>
       </section>
 
       <section id="done">
-        <h2><span class="num">9.</span>Definition of done</h2>
+        <h2>You're done when</h2>
         <ul class="checklist">
-          <li><input type="checkbox" id="d1"><label for="d1">A merged pull request with 3 or more Conventional Commits.</label></li>
-          <li><input type="checkbox" id="d2"><label for="d2"><code>.gitignore</code> present and covering the Node-project list above.</label></li>
-          <li><input type="checkbox" id="d3"><label for="d3"><code>.env.example</code> present (even though there's nothing to configure yet, this is about the habit).</label></li>
-          <li><input type="checkbox" id="d4"><label for="d4">You can narrate, in your own words, the difference between <code>git revert</code> and <code>git reset</code>.</label></li>
+          <li><input type="checkbox" id="d1"><label for="d1">You have a merged pull request on a <strong>public</strong> repo with 3 or more Conventional Commits.</label></li>
+          <li><input type="checkbox" id="d2"><label for="d2">The repo contains a <code>hello-node</code> script.</label></li>
+          <li><input type="checkbox" id="d3"><label for="d3">A merge conflict that you resolved is in the history.</label></li>
+          <li><input type="checkbox" id="d4"><label for="d4"><code>.gitignore</code> is in the repo and covers <code>node_modules</code>, <code>.env</code>, <code>*.db</code>, the generated Prisma client, <code>dist</code> and <code>coverage</code>.</label></li>
+          <li><input type="checkbox" id="d5"><label for="d5"><code>.env.example</code> is in the repo, even though there is nothing to configure yet.</label></li>
+          <li><input type="checkbox" id="d6"><label for="d6">You can explain, in your own words, the difference between <code>git revert</code> and <code>git reset</code>.</label></li>
         </ul>
-        <p>Bring the merged PR and your write-up to your trainer. They review both together.</p>
-      </section>
-
-      <section id="logistics">
-        <h2><span class="num">10.</span>Before you start</h2>
-        <div class="callout trainer">
-          <p class="callout-title">Ask your trainer</p>
-          <p>Your trainer assigns pairs for the merge-conflict exercise at the start of the session. This is a per-cohort roster decision, so you cannot arrange it in advance.</p>
-        </div>
+        <p>Tick everything before you start the next module.</p>
       </section>
 
       <section id="reading">
-        <h2><span class="num">11.</span>Further reading</h2>
+        <h2>Further reading</h2>
         <ul>
           <li><a href="https://docs.github.com/en/get-started">GitHub Docs: Get started</a></li>
           <li><a href="https://www.conventionalcommits.org/">Conventional Commits</a></li>
