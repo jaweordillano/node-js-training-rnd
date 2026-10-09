@@ -30,8 +30,12 @@ itself (repo, `hello-node`, PR, conflict) is still to be done and written up bel
   Interactivity uses native elements (`<details>`, anchor links, checkboxes).
 - Every page has an `index.html` and an `index.md` twin with the same sections, and both are
   updated together on revision.
-- The page teaches the ideas and leaves the answers out. `revert` vs `reset` is posed as three
-  questions to research, because explaining it unaided is a definition-of-done item.
+- The page is written for students who follow it alone, not for trainees who build-to-teach, so it
+  teaches fully: steps, commands, expected output, worked answers (including `revert` vs `reset`),
+  checkpoints and troubleshooting. An earlier draft withheld the answers; that was reversed once it
+  was clear the author does the build-to-teach and students only follow the page.
+- With no partner or trainer, the merge conflict is made solo with two branches, and review is a
+  self-review on the PR. Squash-merge is called out because it would erase the 3+ commit history.
 - Node is pinned to 24 LTS, per `modules/README.md`, which says that choice is already made.
 - Bruno was removed from this page's toolchain list and lab step 1 at the trainer's request.
 
@@ -67,8 +71,3 @@ If you started this module over, what would you do differently?
 
 For the training page: confirm the folder layout and the toolchain list with the trainer before
 writing, and check links with a script after every move.
-
-**Open questions for my trainer**
-
-- Should Bruno also come out of `brief.md`, `tasks.md` and the program-wide ground rules in
-  `modules/README.md`?

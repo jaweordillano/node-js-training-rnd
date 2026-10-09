@@ -231,6 +231,129 @@ details > :last-child { margin-bottom: .9rem; }
 
 footer.site-footer { color: var(--muted); font-size: .85rem; padding: 1.5rem 0; }
 
+
+/* ---------- Course components ---------- */
+
+.time {
+  display: inline-block;
+  font-size: .8rem;
+  font-weight: 600;
+  padding: .1rem .6rem;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  vertical-align: middle;
+  margin-left: .5rem;
+  white-space: nowrap;
+}
+
+.plan { counter-reset: plan; list-style: none; padding: 0; margin: 0 0 1.25rem; }
+.plan li {
+  counter-increment: plan;
+  display: flex;
+  gap: .75rem;
+  align-items: baseline;
+  padding: .45rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.plan li + li { margin-top: .4rem; }
+.plan li::before { content: counter(plan); font-weight: 700; color: var(--accent); }
+.plan a { flex: 1; }
+.plan .time { margin-left: 0; }
+
+.steps { counter-reset: step; list-style: none; padding: 0; margin: 0 0 1.25rem; }
+.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 2.5rem;
+  margin-bottom: 1rem;
+}
+.steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: .1rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
+  font-size: .85rem;
+  display: grid;
+  place-items: center;
+}
+.steps > li > :last-child { margin-bottom: 0; }
+
+.expect {
+  border: 1px dashed var(--tip);
+  border-radius: 6px;
+  padding: .6rem .9rem;
+  margin: 0 0 1.25rem;
+}
+.expect > .expect-title {
+  margin: 0 0 .35rem;
+  font-weight: 700;
+  color: var(--tip);
+}
+.expect pre { margin-bottom: 0; }
+.expect > :last-child { margin-bottom: 0; }
+
+.checkpoint {
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--accent);
+  border-radius: 6px;
+  padding: .75rem 1rem;
+  margin: 1.5rem 0;
+  background: var(--surface);
+}
+.checkpoint > .checkpoint-title { margin: 0 0 .4rem; font-weight: 700; }
+.checkpoint > :last-child { margin-bottom: 0; }
+.checkpoint .checklist { margin-bottom: 0; }
+
+/* OS tabs: radio inputs and labels, CSS only */
+.tabs { margin: 0 0 1.25rem; }
+.tabs > input { position: absolute; opacity: 0; pointer-events: none; }
+.tabs > label {
+  display: inline-block;
+  padding: .45rem .9rem;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: var(--surface);
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--muted);
+}
+.tabs > input:checked + label { background: var(--bg); color: var(--text); border-top: 3px solid var(--accent); }
+.tabs > input:focus-visible + label { outline: 3px solid var(--accent); outline-offset: 2px; }
+.tabs > .tab-panel {
+  display: none;
+  border: 1px solid var(--border);
+  border-radius: 0 6px 6px 6px;
+  padding: 1rem 1rem 0;
+}
+.tabs > .tab-panel > :last-child { margin-bottom: 1rem; }
+.tabs > input[id$="-win"]:checked ~ .panel-win,
+.tabs > input[id$="-mac"]:checked ~ .panel-mac,
+.tabs > input[id$="-linux"]:checked ~ .panel-linux { display: block; }
+
+.course-map { list-style: none; padding: 0; margin: 0 0 1.25rem; }
+.course-map li {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .7rem 1rem;
+  background: var(--surface);
+}
+.course-map li + li { margin-top: .5rem; }
+.course-map .map-head { display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline; font-weight: 700; }
+.course-map .map-head .id { color: var(--accent); }
+.course-map p { margin: .25rem 0 0; color: var(--muted); font-size: .95rem; }
+.course-map .soon { opacity: .75; }
+
 /* ---------- Print ---------- */
 
 @media print {
@@ -239,6 +362,8 @@ footer.site-footer { color: var(--muted); font-size: .85rem; padding: 1.5rem 0; 
   .layout { display: block; max-width: none; padding: 0; }
   main { max-width: none; }
   a { color: inherit; }
-  pre, .callout, details, figure, tr { break-inside: avoid; }
+  pre, .callout, details, figure, tr, .checkpoint { break-inside: avoid; }
+  .tabs > .tab-panel { display: block; }
+  .tabs > label { border-bottom: 1px solid var(--border); }
   details > summary { list-style: none; }
 }

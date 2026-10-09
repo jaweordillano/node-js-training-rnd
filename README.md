@@ -1,10 +1,14 @@
 # Node.js Developer Training
 
-This repo holds the Build-to-Teach version of the Node.js Developer Training Program: nine training
-stages in `modules/` (M01–M09), followed by a capstone project. The format is different on purpose:
-instead of being taught the material, the trainee builds toward each stage's deliverable from a
-brief, and writes up how they did it as they go. The write-up is what ends up teaching the next
-cohort.
+This repo holds the Node.js Developer Training Program, an asynchronous, self-paced course for
+students: ten modules (M01–M10) that take a developer with basic programming skills to a typed,
+validated, tested REST API. **Students start at [`index.html`](index.html)** and follow each module
+page (`modules/<stage>/index.html`) on their own.
+
+The course is authored with a build-to-teach cycle. The author builds each stage, writes it up, and
+turns it into a course page. The briefs, task checklists and write-up templates in `modules/` are
+that authoring workflow. They are not what students read, and students do not run the cycle
+themselves.
 
 A note on words: a **module** in this repository is a training stage, not a JavaScript/Node.js
 module. Stages M02 and M03 are the ones that actually teach what a JavaScript/Node.js module is
@@ -17,7 +21,9 @@ module. Stages M02 and M03 are the ones that actually teach what a JavaScript/No
 | `modules/` | The nine stage folders (M01–M09), each with a brief, a checklist, and a write-up template |
 | `modules/m10-capstone/` | The capstone, with its own brief, checklist, and write-up template |
 
-## How a stage works
+## How a stage works (author workflow)
+
+> In the rest of this section, "you" is whoever builds and writes up the stage (the course author) and the "trainer" is whoever reviews it. Students do not follow this workflow.
 
 1. **Your trainer hands you the brief.** Each stage's `brief.md` says what to build and how you
    will know it is done: objective, scope, stack constraints, the named deliverable, a lab, a

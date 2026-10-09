@@ -1,18 +1,20 @@
 # Node.js Developer Training — Modules
 
-This is the trainee-facing guide for the Node.js Developer Training Program: four weeks, ten
+This folder holds one folder per stage of the Node.js Developer Training Program: four weeks, ten
 modules, about 80 hours, ending in a typed REST API built, validated, tested and version-controlled
 from scratch. It is built from `docs/arch-docs/Node.js Developer Training Program — Solution
 Design.md` and `docs/prd/nodejs-developer-training.md`, applying the cycle in
 `docs/build-to-teach-framework.md`.
 
-**There are no solutions in this folder, on purpose.** Each stage's `brief.md` specifies what you
-need to learn, what to build, and how you'll know it's done — not how to build it. You research the
-topics, make the design calls, and write up what you did as you go, the same way the build-to-teach
-framework has an engineer build the capstone and the module write-up together, stage by stage, not
-one after the other.
+**Who reads what.** Students follow the course page in each stage folder (`index.html`, with an
+`index.md` twin), starting from the root `index.html`. The `brief.md`, `tasks.md` and
+`write-up-template.md` files are the course author's workflow: the brief sets the scope and the
+deliverable, and the write-up is where the author records what they built before turning it into
+the page. The sections below describe that author workflow.
 
-## How a stage works
+## How a stage works (author workflow)
+
+> In the rest of this section, "you" is whoever builds and writes up the stage (the course author) and the "trainer" is whoever reviews it. Students do not follow this workflow.
 
 1. Read the stage's `brief.md` — objective, scope, stack constraints, deliverable, lab, definition
    of done, and anything still open that needs your trainer's sign-off before you start.
