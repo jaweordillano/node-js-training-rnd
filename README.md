@@ -1,10 +1,14 @@
 # Node.js Developer Training
 
-This repo holds the Build-to-Teach version of the Node.js Developer Training Program: nine training
-stages in `modules/` (M01–M09), followed by a capstone (M10). The format is different on purpose:
-instead of being taught the material, the trainee builds toward each stage's deliverable from a
-brief, and writes up how they did it as they go. The write-up is what ends up teaching the next
-cohort.
+This repo holds the Node.js Developer Training Program, an asynchronous, self-paced course for
+students: ten modules (M01–M10) that take a developer with basic programming skills to a typed,
+validated, tested REST API. **Students start at [`index.html`](index.html)** and follow each module
+page (`modules/<stage>/index.html`) on their own.
+
+The course is authored with a build-to-teach cycle. The author builds each stage, writes it up, and
+turns it into a course page. The briefs, task checklists and write-up templates in `modules/` are
+that authoring workflow. They are not what students read, and students do not run the cycle
+themselves.
 
 A note on words: a **module** in this repository is a training stage, not a JavaScript/Node.js
 module. Stages M02 and M03 are the ones that actually teach what a JavaScript/Node.js module is
@@ -34,7 +38,9 @@ module. Stages M02 and M03 are the ones that actually teach what a JavaScript/No
   never left uncommitted.
 - **Git/GitHub workflow throughout:** feature branches, pull requests, and Conventional Commits.
 
-## How a stage works
+## How a stage works (author workflow)
+
+> In the rest of this section, "you" is whoever builds and writes up the stage (the course author) and the "trainer" is whoever reviews it. Students do not follow this workflow.
 
 1. **Your trainer hands you the brief.** Each stage's `brief.md` says what to build and how you
    will know it is done: objective, scope, stack constraints, the named deliverable, a lab, a
@@ -77,7 +83,7 @@ three files.
 
 | Stage | Title | Theme | Leaves behind |
 | --- | --- | --- | --- |
-| [M01](modules/m01-dev-environment-git-github/brief.md) | Dev Environment, Git & GitHub | Toolchain, the everyday Git workflow, a merged PR with a resolved conflict | Nothing |
+| [M01](modules/m01-dev-environment-git-github/brief.md) | Dev Environment, Git & GitHub | Toolchain, five core Git commands, the `node-js-training` project pushed to GitHub | Nothing |
 | [M02](modules/m02-modern-javascript-async-await/brief.md) | Modern JavaScript & Async/Await | Language essentials, the event loop, reliable async code | The Async toolkit (ported to TypeScript in M04) |
 | [M03](modules/m03-nodejs-runtime-npm/brief.md) | Node.js Runtime & npm | Core modules, npm, a bare `node:http` server | Nothing |
 | [M04](modules/m04-typescript-on-node/brief.md) | TypeScript Basics & TypeScript on Node.js | Strict TypeScript, the Task domain types | The ported toolkit and Task domain types |
