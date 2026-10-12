@@ -1043,4 +1043,4 @@ The numbers depend on your machine and operating system. What matters is the gap
 
 Keep the repo as it is. M04 moves you to TypeScript, and M05 builds this kind of API again with Express.
 
-Previous: [M02, Modern JavaScript & Async/Await](../m02-modern-javascript-async-await/index.md). Next: M04, TypeScript Basics & TypeScript on Node.js (coming soon).
+Previous: [M02, Modern JavaScript & Async/Await](../m02-modern-javascript-async-await/index.md). Next: [M04, TypeScript Basics & TypeScript on Node.js](../m04-typescript-on-node/index.md).

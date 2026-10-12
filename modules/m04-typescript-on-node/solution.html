@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M04 — Solution: Port the Async toolkit</title>
+  <meta name="description" content="The full TypeScript Async toolkit for the M04 exercise, with an explanation of every type and the compiler errors each one prevents.">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <a class="back" href="../../index.html">&larr; All modules</a>
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#overview">Before you read</a></li>
+        <li><a href="#s1">1. The full toolkit.ts</a></li>
+        <li><a href="#s2">2. withTimeout</a></li>
+        <li><a href="#s3">3. retry</a></li>
+        <li><a href="#s4">4. mapLimit</a></li>
+        <li><a href="#s5">5. Common wrong answers</a></li>
+        <li><a href="#s6">6. Check it</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Module M04 · Solution for the section 5 exercise</p>
+        <h1>Solution: Port the Async toolkit</h1>
+        <p class="lede">The complete answer to the toolkit exercise, and why each type is what it is. Try the exercise first, because you learn most from the errors you work through yourself.</p>
+      </header>
+
+      <section id="overview">
+        <h2>Before you read</h2>
+        <div class="callout warn">
+          <p class="callout-title">Try the exercise first</p>
+          <p>This page has the full answer. You learn more from the compiler errors you fix yourself, so go back to <a href="index.html#s5">section 5</a> and use the hints first. Come here when you are stuck, or when you have finished and want to compare your answer with this one.</p>
+        </div>
+        <p>The goal was zero errors from <code>npm run typecheck</code>, and <code>All checks passed</code> from <code>npm run check</code>. If yours does both, with no <code>any</code>, your answer is right even if it looks different from this one. There are several correct ways to write most of these types.</p>
+      </section>
+
+      <section id="s1">
+        <h2><span class="num">1.</span>The full toolkit.ts</h2>
+        <pre><code>// The Async toolkit: four small helpers for reliable async code.
+
+export const sleep = (ms: number): Promise&lt;void&gt; =&gt;
+  new Promise((resolve) =&gt; setTimeout(resolve, ms));
+
+export class TimeoutError extends Error {
+  constructor(ms: number) {
+    super(`Timed out after ${ms} ms`);
+    this.name = "TimeoutError";
+  }
+}
+
+export function withTimeout&lt;T&gt;(promise: Promise&lt;T&gt;, ms: number): Promise&lt;T&gt; {
+  let timer: ReturnType&lt;typeof setTimeout&gt;;
+  const timeout = new Promise&lt;never&gt;((_, reject) =&gt; {
+    timer = setTimeout(() =&gt; reject(new TimeoutError(ms)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() =&gt; clearTimeout(timer));
+}
+
+export interface RetryOptions {
+  retries?: number;
+  delayMs?: number;
+}
+
+export async function retry&lt;T&gt;(
+  fn: (attempt: number) =&gt; Promise&lt;T&gt;,
+  { retries = 3, delayMs = 100 }: RetryOptions = {},
+): Promise&lt;T&gt; {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn(attempt);
+    } catch (err: unknown) {
+      if (attempt &gt;= retries) throw err;
+      await sleep(delayMs);
+    }
+  }
+}
+
+export async function mapLimit&lt;T, R&gt;(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) =&gt; Promise&lt;R&gt;,
+): Promise&lt;R[]&gt; {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+
+  async function worker(): Promise&lt;void&gt; {
+    while (next &lt; items.length) {
+      const index = next++;
+      results[index] = await fn(items[index] as T, index);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, worker);
+  await Promise.all(workers);
+  return results;
+}</code></pre>
+        <p><code>sleep</code> and <code>TimeoutError</code> were given in the exercise. The rest is explained below, one function at a time.</p>
+      </section>
+
+      <section id="s2">
+        <h2><span class="num">2.</span>withTimeout</h2>
+        <pre><code>export function withTimeout&lt;T&gt;(promise: Promise&lt;T&gt;, ms: number): Promise&lt;T&gt; {
+  let timer: ReturnType&lt;typeof setTimeout&gt;;
+  const timeout = new Promise&lt;never&gt;((_, reject) =&gt; {
+    timer = setTimeout(() =&gt; reject(new TimeoutError(ms)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() =&gt; clearTimeout(timer));
+}</code></pre>
+        <ul>
+          <li><strong><code>&lt;T&gt;</code>.</strong> Whatever the wrapped promise resolves with, <code>withTimeout</code> gives back the same. <code>withTimeout(fetchUser(), 500)</code> is a <code>Promise&lt;User&gt;</code>. Without <code>T</code>, the caller would lose the type.</li>
+          <li><strong><code>ReturnType&lt;typeof setTimeout&gt;</code>.</strong> In Node.js, <code>setTimeout</code> returns an object (<code>Timeout</code>), and in a browser it returns a number. Asking TypeScript for "whatever <code>setTimeout</code> returns" is correct on both, so you never guess.</li>
+          <li><strong><code>new Promise&lt;never&gt;</code>.</strong> The timeout promise never resolves with a value. It can only reject. <code>never</code> means "no value ever". That matters for <code>Promise.race</code>: the race of a <code>Promise&lt;T&gt;</code> and a <code>Promise&lt;never&gt;</code> is a <code>Promise&lt;T&gt;</code>. With a plain <code>new Promise(...)</code>, its type is <code>Promise&lt;unknown&gt;</code>, and the race becomes <code>Promise&lt;unknown&gt;</code>, which is not a <code>Promise&lt;T&gt;</code>.</li>
+        </ul>
+      </section>
+
+      <section id="s3">
+        <h2><span class="num">3.</span>retry</h2>
+        <pre><code>export interface RetryOptions {
+  retries?: number;
+  delayMs?: number;
+}
+
+export async function retry&lt;T&gt;(
+  fn: (attempt: number) =&gt; Promise&lt;T&gt;,
+  { retries = 3, delayMs = 100 }: RetryOptions = {},
+): Promise&lt;T&gt; {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn(attempt);
+    } catch (err: unknown) {
+      if (attempt &gt;= retries) throw err;
+      await sleep(delayMs);
+    }
+  }
+}</code></pre>
+        <ul>
+          <li><strong>One <code>T</code>, in two places.</strong> <code>fn</code> returns a <code>Promise&lt;T&gt;</code>, and <code>retry</code> returns a <code>Promise&lt;T&gt;</code>. TypeScript works <code>T</code> out from the function you pass: <code>retry(async () =&gt; 42)</code> is a <code>Promise&lt;number&gt;</code>. That is exactly what the first two type tests check.</li>
+          <li><strong><code>RetryOptions</code>.</strong> Both fields are optional (<code>?</code>), so a caller can pass <code>{ retries: 5 }</code> or nothing. The defaults, <code>= 3</code> and <code>= 100</code>, are in the destructuring, and the <code>= {}</code> after the type lets the whole object be left out.</li>
+          <li><strong><code>fn: (attempt: number) =&gt; Promise&lt;T&gt;</code>.</strong> A function type: the shape of a function you receive. Callers whose function ignores <code>attempt</code> can still pass <code>async () =&gt; 42</code>, because a function with fewer parameters fits.</li>
+          <li><strong><code>catch (err: unknown)</code>.</strong> A caught value can be anything, because JavaScript lets you <code>throw</code> any value. <code>unknown</code> is honest. You do not need to look inside <code>err</code> to rethrow it. (Under <code>strict</code> this is already the default, so writing it is optional.)</li>
+        </ul>
+      </section>
+
+      <section id="s4">
+        <h2><span class="num">4.</span>mapLimit</h2>
+        <pre><code>export async function mapLimit&lt;T, R&gt;(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) =&gt; Promise&lt;R&gt;,
+): Promise&lt;R[]&gt; {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+
+  async function worker(): Promise&lt;void&gt; {
+    while (next &lt; items.length) {
+      const index = next++;
+      results[index] = await fn(items[index] as T, index);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, worker);
+  await Promise.all(workers);
+  return results;
+}</code></pre>
+        <ul>
+          <li><strong>Two generics.</strong> <code>T</code> is the type of each item going in, and <code>R</code> is the type of each result coming out. They can differ: <code>mapLimit([1, 2, 3], 2, async (n) =&gt; String(n))</code> has <code>T = number</code> and <code>R = string</code>, so the result is a <code>Promise&lt;string[]&gt;</code>.</li>
+          <li><strong><code>readonly T[]</code>.</strong> The function never changes the list, so it accepts a read-only list too. A normal array also fits, so callers lose nothing.</li>
+          <li><strong><code>const results: R[] = new Array(items.length)</code>.</strong> A list for the answers, typed from <code>R</code>, so each <code>results[index] = ...</code> is checked.</li>
+          <li><strong><code>items[index] as T</code>.</strong> With <code>noUncheckedIndexedAccess</code>, <code>items[index]</code> is <code>T | undefined</code>, because TypeScript cannot know that <code>index</code> is in range. The <code>while</code> loop guarantees it is, so <code>as T</code> tells the compiler what you know. An assertion like this is a promise that the compiler cannot check, so keep them rare and keep them where, as here, the code right above proves it. A check like <code>if (item === undefined)</code> would be wrong here, because <code>T</code> itself might include <code>undefined</code>.</li>
+          <li><strong><code>worker(): Promise&lt;void&gt;</code>.</strong> An async function that returns nothing is a <code>Promise&lt;void&gt;</code>.</li>
+        </ul>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>Common wrong answers</h2>
+        <p>These are the answers that compile, or nearly do, and what the compiler said when I tried them. Your line numbers will differ.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>You wrote</th><th>What the compiler said</th></tr></thead>
+            <tbody>
+              <tr><td><code>Promise&lt;any&gt;</code> as the return type of <code>withTimeout</code></td><td><code>types.check.ts(16,28): error TS2344: Type 'false' does not satisfy the constraint 'true'.</code> The type test notices <code>any</code>: the result should be exactly <code>Promise&lt;boolean&gt;</code>.</td></tr>
+              <tr><td><code>Promise&lt;any&gt;</code> in the type of <code>fn</code> in <code>retry</code></td><td>Two <code>TS2344</code> errors in <code>types.check.ts</code>, for the <code>number</code> and <code>string</code> results.</td></tr>
+              <tr><td><code>items: readonly any[]</code> in <code>mapLimit</code></td><td><code>check.ts(49,12): error TS18046: 'n' is of type 'unknown'.</code> plus <code>TS2344</code> and an <code>Unused '@ts-expect-error' directive</code> error, because <code>any</code> accepts the call that should have been refused.</td></tr>
+              <tr><td><code>new Promise(...)</code> without <code>&lt;never&gt;</code></td><td><code>toolkit.ts(18,3): error TS2322: Type 'Promise&lt;unknown&gt;' is not assignable to type 'Promise&lt;T&gt;'.</code></td></tr>
+              <tr><td><code>let timer: number</code></td><td><code>toolkit.ts(16,5): error TS2322: Type 'Timeout' is not assignable to type 'number'.</code></td></tr>
+              <tr><td><code>fn(items[index], index)</code> with no <code>as T</code></td><td>`toolkit.ts(51,33): error TS2345: Argument of type 'T</td><td>undefined' is not assignable to parameter of type 'T'.`</td></tr>
+              <tr><td><code>Promise&lt;unknown[]&gt;</code> as the return type of <code>mapLimit</code></td><td><code>types.check.ts(23,28): error TS2344: ...</code> The caller would get <code>unknown[]</code> instead of <code>string[]</code>.</td></tr>
+              <tr><td>No <code>= {}</code> after <code>RetryOptions</code></td><td><code>types.check.ts(9,12): error TS2554: Expected 2 arguments, but got 1.</code> The options object stops being optional.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The pattern: if the compiler can only say "this type is <code>unknown</code>", something has no type of its own. If it says <code>any</code> is fine and the type test still fails, you made a type too loose.</p>
+      </section>
+
+      <section id="s6">
+        <h2><span class="num">6.</span>Check it</h2>
+        <pre><code>npm run typecheck
+npm run check</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 typecheck
+&gt; tsc --noEmit
+
+&gt; js-training@1.0.0 check
+&gt; tsx src/toolkit/check.ts
+
+ok  sleep
+ok  withTimeout
+ok  retry
+ok  mapLimit
+All checks passed</code></pre>
+        </div>
+        <p>Then commit it as the exercise says, and carry on with <a href="index.html#s6">section 6</a>.</p>
+      </section>
+
+<nav class="pager" aria-label="Module navigation">
+        <a href="index.html#s5">&larr; Back to the exercise</a>
+        <a href="index.html#s6">Next: 6. Running TypeScript on Node.js &rarr;</a>
+      </nav>
+    </main>
+  </div>
+</body>
+</html>

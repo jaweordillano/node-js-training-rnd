@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M04 — TypeScript Basics &amp; TypeScript on Node.js</title>
+  <meta name="description" content="Learn strict TypeScript, set up a TypeScript project on Node.js, build the Task domain types, and port the Async toolkit to TypeScript as an exercise in your node-js-training project.">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <a class="back" href="../../index.html">&larr; All modules</a>
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#overview">Overview &amp; time plan</a></li>
+        <li><a href="#s1">1. Why TypeScript, and set up the project</a></li>
+        <li><a href="#s2">2. Core types</a></li>
+        <li><a href="#s3">3. Functions, generics and narrowing</a></li>
+        <li><a href="#s4">4. Utility types and the Task domain</a></li>
+        <li><a href="#s5">5. Exercise: port the Async toolkit</a></li>
+        <li><a href="#s6">6. Running TypeScript on Node.js</a></li>
+        <li><a href="#check">Check your understanding</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#done">You're done when</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Module M04 · Week 2 · Days 1-2 · about 3 hours</p>
+        <h1>TypeScript Basics &amp; TypeScript on Node.js</h1>
+        <p class="lede">Learn the TypeScript you will use for the rest of the course, set up a strict TypeScript project on Node.js, and port your Async toolkit to TypeScript as an exercise that the compiler marks for you.</p>
+      </header>
+
+      <section id="overview">
+        <h2>Overview &amp; time plan</h2>
+        <p><strong>Builds on:</strong> M02 and M03. You need the <code>node-js-training</code> repo, Node.js 24, and the M02 Async toolkit in <code>src/toolkit/</code>. Everything you write here goes into that same repo, on <code>main</code>, using the add, commit and push steps you know. (The word "module" on this page means the course lessons, M01 to M10, unless it says JavaScript module.)</p>
+        <p>JavaScript lets you pass a number where a string is expected, and finds out when the program runs. <strong>TypeScript</strong> is JavaScript with <strong>types</strong>. A tool called the compiler reads your code <em>before</em> it runs and reports mistakes like that one. From this module on, the whole course is TypeScript: the Express API, Prisma, Zod and the tests.</p>
+        <p>You will:</p>
+        <ul>
+          <li>set up a strict TypeScript project in your repo, with a <code>typecheck</code> command;</li>
+          <li>learn the core of the type system, in small files you run and break on purpose;</li>
+          <li>build the <strong>Task domain types</strong> (<code>Task</code>, <code>CreateTaskInput</code>, <code>UpdateTaskInput</code>, <code>Result&lt;T, E&gt;</code>) that the Task API uses from M05;</li>
+          <li><strong>port your Async toolkit to TypeScript yourself</strong>, as an exercise. The compiler tells you when you are right, and a separate <a href="solution.html">solution page</a> explains the answer if you get stuck.</li>
+        </ul>
+        <ol class="plan">
+          <li><a href="#s1">Why TypeScript, and set up the project</a> <span class="time">25 min</span></li>
+          <li><a href="#s2">Core types</a> <span class="time">30 min</span></li>
+          <li><a href="#s3">Functions, generics and narrowing</a> <span class="time">35 min</span></li>
+          <li><a href="#s4">Utility types and the Task domain</a> <span class="time">30 min</span></li>
+          <li><a href="#s5">Exercise: port the Async toolkit</a> <span class="time">40 min</span></li>
+          <li><a href="#s6">Running TypeScript on Node.js</a> <span class="time">15 min</span></li>
+          <li><a href="#check">Check your understanding</a> <span class="time">5 min</span></li>
+        </ol>
+        <p>This page moves quickly. In sections 2 to 4 you may paste the practice files, because the learning is in running them and breaking them on purpose. In section 5, type the code yourself. Run every command, and compare with the <em>You should see</em> box. Line numbers in compiler errors will differ from the examples, because your files are your own. Commands are written for Git Bash on Windows, and macOS and Linux Terminal. If anything else differs, check <a href="#troubleshooting">Troubleshooting</a>.</p>
+      </section>
+
+      <section id="s1">
+        <h2><span class="num">1.</span>Why TypeScript, and set up the project <span class="time">25 min</span></h2>
+        <h3>1.1 What types give you</h3>
+        <p>A type is a rule about what a value can be: <code>string</code>, <code>number</code>, a list of tasks, an object with a <code>title</code>. TypeScript checks those rules while you type, so you find mistakes in your editor and not in front of a user. Three ideas to hold on to:</p>
+        <ul>
+          <li><strong>Types disappear at runtime.</strong> TypeScript checks your code, then the types are removed and plain JavaScript runs. A type never validates data that arrives while the program runs (that is why M08 adds Zod).</li>
+          <li><strong>Inference vs annotation.</strong> TypeScript works out most types itself (<em>inference</em>). You write a type yourself (an <em>annotation</em>) where it cannot, mostly on function parameters and on the shapes you design.</li>
+          <li><strong>Structural typing.</strong> A value fits a type if it has the right <em>shape</em>. It does not need to be created "as" that type.</li>
+        </ul>
+        <h3>1.2 Install and configure</h3>
+        <p>From the repo root:</p>
+        <pre><code>npm install -D typescript@7 tsx @types/node@24</code></pre>
+        <p>All three are dev dependencies (you met <code>-D</code> in M03):</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Package</th><th>What it is</th></tr></thead>
+            <tbody>
+              <tr><td><code>typescript</code></td><td>The compiler. Version 7 is the new native compiler, and it is much faster than 6. Its command is <code>tsc</code>.</td></tr>
+              <tr><td><code>tsx</code></td><td>Runs <code>.ts</code> files directly. It is this course's runner. It removes the types and does <strong>not</strong> check them.</td></tr>
+              <tr><td><code>@types/node</code></td><td>The types for Node.js itself (<code>node:fs</code>, <code>process</code>, and so on). Use the major version of your Node.js: 24.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout note">
+          <p class="callout-title">A warning about install scripts</p>
+          <p>Depending on your npm version, the install may print a warning that <code>esbuild</code> (which <code>tsx</code> uses) has an install script that is not yet approved. That is the lifecycle-script idea from M03. <code>tsx</code> works anyway, so you can ignore it here.</p>
+        </div>
+        <p>Create <code>tsconfig.json</code> in the repo root. It tells <code>tsc</code> how strictly to check, and which files to check.</p>
+        <pre><code>{
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "rewriteRelativeImportExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src"]
+}</code></pre>
+        <p>What the options do:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Option</th><th>What it does and why</th></tr></thead>
+            <tbody>
+              <tr><td><code>target</code></td><td>Which JavaScript version the code is checked against. <code>es2023</code> is fine for Node.js 24.</td></tr>
+              <tr><td><code>module</code>, <code>moduleResolution</code></td><td><code>nodenext</code> makes TypeScript follow Node.js's own rules for ES modules, so what passes the check also runs.</td></tr>
+              <tr><td><code>strict</code></td><td>Turns on the strict family of checks (no hidden <code>any</code>, no <code>null</code> surprises). Always on for this course.</td></tr>
+              <tr><td><code>noUncheckedIndexedAccess</code></td><td><code>list[0]</code> has type <code>T \| undefined</code>, because the item may not exist. It catches real bugs.</td></tr>
+              <tr><td><code>verbatimModuleSyntax</code></td><td>You must write <code>import type</code> for type-only imports. This keeps imports honest when types are removed.</td></tr>
+              <tr><td><code>erasableSyntaxOnly</code></td><td>Only allows TypeScript that can be removed cleanly, which is what Node.js's built-in type stripping can run (section 6). It rules out <code>enum</code>.</td></tr>
+              <tr><td><code>rewriteRelativeImportExtensions</code></td><td>Lets you write <code>import ... from "./file.ts"</code>, with the real file extension.</td></tr>
+              <tr><td><code>noEmit</code></td><td><code>tsc</code> only checks. It writes no files, because <code>tsx</code> runs the code.</td></tr>
+              <tr><td><code>skipLibCheck</code></td><td>Do not re-check other people's <code>.d.ts</code> files. Faster, and their errors are not yours to fix.</td></tr>
+              <tr><td><code>types</code></td><td>Which <code>@types/*</code> packages to load. TypeScript no longer loads them all by itself, so name <code>node</code>.</td></tr>
+              <tr><td><code>include</code></td><td>The folders to check: everything in <code>src</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Add a script to run the checker, then make your first TypeScript file:</p>
+        <pre><code>npm pkg set scripts.typecheck="tsc --noEmit"</code></pre>
+        <p>Create <code>src/labs/types-intro.ts</code>:</p>
+        <pre><code>// Inference: TypeScript works out the type for you
+const city = "Manila"; // type "Manila" (a const string is its own literal)
+let count = 3; // type number
+
+// Annotation: you write the type, here on a function
+function greet(name: string): string {
+  return `Hello, ${name}`;
+}
+console.log(greet(city), count);
+
+// Structural typing: a value fits if it has the right shape
+type Named = { name: string };
+const user = { name: "Ana", age: 30 };
+const named: Named = user; // fine: user has a name
+console.log(greet(named.name));</code></pre>
+        <p>The first comment is <em>inference</em>: you never wrote <code>string</code> and <code>number</code>, but TypeScript knows them. <code>greet(name: string): string</code> is <em>annotation</em>: a parameter must be annotated, and a return type is worth writing. <code>user</code> has an extra <code>age</code>, yet fits <code>Named</code>, because it has a <code>name</code>: that is <em>structural typing</em>.</p>
+        <p>Run the check, then run the program:</p>
+        <pre><code>npm run typecheck
+npx tsx src/labs/types-intro.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 typecheck
+&gt; tsc --noEmit
+
+Hello, Manila 3
+Hello, Ana</code></pre>
+          <p><code>tsc</code> prints nothing when there are no errors. The first two lines come from npm and show your <code>package.json</code> name.</p>
+        </div>
+        <h3>1.3 Read your first compiler error</h3>
+        <p>Add a blank line and then one bad line to the end of <code>types-intro.ts</code>, and run the check:</p>
+        <pre><code>greet(42);</code></pre>
+        <pre><code>npm run typecheck</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>src/labs/types-intro.ts(17,7): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.</code></pre>
+        </div>
+        <p>Read it in this order: the <strong>file and position</strong> (line 17, column 7), then the <strong>message</strong>, which says what you gave (<code>number</code>) and what was expected (<code>string</code>). The <code>TS2345</code> code is what you search for. Now the important part: <code>tsx</code> does <em>not</em> check types. Run the broken file:</p>
+        <pre><code>npx tsx src/labs/types-intro.ts</code></pre>
+        <p>It runs and prints <code>Hello, 42</code>, as if nothing was wrong. So <code>npm run typecheck</code> is the step that protects you, and you must run it yourself. Delete the <code>greet(42);</code> line (and the blank line before it) and check that <code>npm run typecheck</code> is quiet again.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 1</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c1-1"><label for="c1-1"><code>npm run typecheck</code> prints no errors for your <code>types-intro.ts</code>.</label></li>
+            <li><input type="checkbox" id="c1-2"><label for="c1-2">You saw error <code>TS2345</code> for <code>greet(42)</code>, and the file still ran under <code>tsx</code>.</label></li>
+            <li><input type="checkbox" id="c1-3"><label for="c1-3">You can say what <code>strict</code> and <code>noEmit</code> are for.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "chore: add typescript and tsconfig"
+git push</code></pre>
+      </section>
+
+      <section id="s2">
+        <h2><span class="num">2.</span>Core types <span class="time">30 min</span></h2>
+        <p>Create <code>src/labs/types-core.ts</code>:</p>
+        <pre><code>// Arrays and tuples
+const scores: number[] = [90, 72, 85];
+const pair: [string, number] = ["Ana", 30]; // exactly a string, then a number
+
+// Unions and literal types
+type Id = string | number;
+type Status = "todo" | "in-progress" | "done"; // only these three strings
+const status: Status = "todo";
+
+function show(id: Id): string {
+  return typeof id === "string" ? id.toUpperCase() : id.toFixed(0);
+}
+console.log(scores.length, pair[0], status, show("a1"), show(7));
+
+// as const: freeze a value into its exact literal types
+const levels = ["low", "medium", "high"] as const;
+type Level = (typeof levels)[number]; // "low" | "medium" | "high"
+const level: Level = levels[2];
+console.log(level);
+
+// type vs interface
+interface Point {
+  x: number;
+  y: number;
+  label?: string; // optional
+  readonly id: number; // cannot be reassigned
+}
+const p: Point = { x: 1, y: 2, id: 1 };
+console.log(p);
+
+// Intersection: combine two types
+type Timestamped = { createdAt: Date };
+type Post = { title: string } &amp; Timestamped;
+const post: Post = { title: "Hi", createdAt: new Date(0) };
+console.log(post.createdAt.toISOString());</code></pre>
+        <pre><code>npx tsx src/labs/types-core.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>3 Ana todo A1 7
+high
+{ x: 1, y: 2, id: 1 }
+1970-01-01T00:00:00.000Z</code></pre>
+        </div>
+        <p>What each part teaches:</p>
+        <ul>
+          <li><strong>Arrays and tuples.</strong> <code>number[]</code> is a list of any length. A <em>tuple</em> <code>[string, number]</code> has a fixed length and a type for each position.</li>
+          <li><strong>Unions and literal types.</strong> <code>string | number</code> means "either". A <em>literal type</em> such as <code>"todo"</code> is one exact value, so <code>Status</code> can only be one of three strings. This is how this course models a set of options, <strong>instead of <code>enum</code></strong> (more on that in section 6).</li>
+          <li><strong>Narrowing.</strong> <code>typeof id === "string"</code> inside <code>show</code> tells TypeScript which branch has a string, so <code>.toUpperCase()</code> is allowed there.</li>
+          <li><strong><code>as const</code>.</strong> It freezes a value into its exact literals, so <code>levels</code> is <code>readonly ["low", "medium", "high"]</code>, and <code>(typeof levels)[number]</code> turns it into a union.</li>
+          <li><strong>Optional and <code>readonly</code>.</strong> <code>label?</code> may be missing. <code>readonly id</code> cannot be reassigned.</li>
+          <li><strong>Intersection.</strong> <code>A &amp; B</code> is a value that has everything from both.</li>
+        </ul>
+        <p>Now break it on purpose. Add a blank line and then these three lines to the end of the file, and run <code>npm run typecheck</code>:</p>
+        <pre><code>const bad: Status = "archived";
+p.id = 2;
+scores.push("100");</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>src/labs/types-core.ts(37,7): error TS2322: Type '"archived"' is not assignable to type 'Status'.
+src/labs/types-core.ts(38,3): error TS2540: Cannot assign to 'id' because it is a read-only property.
+src/labs/types-core.ts(39,13): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.</code></pre>
+        </div>
+        <p>Each error is a bug that JavaScript would have let through. Delete the three lines again.</p>
+        <h3>2.1 type or interface?</h3>
+        <p>Both describe the shape of an object, and for objects they are almost the same. The differences that matter:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th></th><th><code>type</code></th><th><code>interface</code></th></tr></thead>
+            <tbody>
+              <tr><td>Object shapes</td><td>Yes</td><td>Yes</td></tr>
+              <tr><td>Unions, tuples, literals, results of utility types</td><td>Yes</td><td>No</td></tr>
+              <tr><td>Extend another</td><td><code>A &amp; B</code></td><td><code>interface B extends A</code></td></tr>
+              <tr><td>Same name declared twice</td><td>Error</td><td>The two are merged</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The rule used in this course: <strong><code>interface</code> for the shape of an object you design</strong> (like <code>Task</code>), and <strong><code>type</code> for everything else</strong> (unions, aliases, types built with utility types). Pick one, be consistent, and do not worry beyond that.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 2</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c2-4"><label for="c2-4"><code>types-core.ts</code> printed the output above, and <code>typecheck</code> is clean after you removed the three bad lines.</label></li>
+            <li><input type="checkbox" id="c2-5"><label for="c2-5">You can say what a literal type is and why <code>"archived"</code> is rejected.</label></li>
+            <li><input type="checkbox" id="c2-6"><label for="c2-6">You can say when you would use <code>interface</code> and when <code>type</code>.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s3">
+        <h2><span class="num">3.</span>Functions, generics and narrowing <span class="time">35 min</span></h2>
+        <p>Create <code>src/labs/types-generics.ts</code>:</p>
+        <pre><code>// Generics: one function, many types. T is filled in from how you call it.
+function first&lt;T&gt;(items: T[]): T | undefined {
+  return items[0];
+}
+const n = first([10, 20]); // number | undefined
+const s = first(["a", "b"]); // string | undefined
+console.log(n, s);
+
+// A constraint limits what T can be
+function longest&lt;T extends { length: number }&gt;(a: T, b: T): T {
+  return a.length &gt;= b.length ? a : b;
+}
+console.log(longest("hello", "hi"), longest([1, 2, 3], [1]));
+
+// A default type, used when T is not given
+type Box&lt;T = string&gt; = { value: T };
+const box: Box = { value: "text" }; // Box&lt;string&gt;
+const numBox: Box&lt;number&gt; = { value: 5 };
+console.log(box.value, numBox.value);
+
+// Narrowing: check a value, and TypeScript knows more inside the check
+function describe(value: string | number | string[]): string {
+  if (typeof value === "string") return `string of ${value.length}`;
+  if (Array.isArray(value)) return `list of ${value.length}`;
+  return `number ${value.toFixed(1)}`;
+}
+console.log(describe("abc"), describe(["a", "b"]), describe(2));
+
+// Discriminated union: one field ("kind") tells the shapes apart
+type Shape =
+  | { kind: "circle"; radius: number }
+  | { kind: "square"; side: number };
+
+function area(shape: Shape): number {
+  switch (shape.kind) {
+    case "circle":
+      return Math.PI * shape.radius ** 2;
+    case "square":
+      return shape.side ** 2;
+    default: {
+      const unreachable: never = shape; // errors if a new kind is not handled
+      return unreachable;
+    }
+  }
+}
+console.log(area({ kind: "square", side: 3 }).toFixed(1));
+
+// A user-defined type guard: you write the check, TypeScript trusts it
+function isShape(value: unknown): value is Shape {
+  return typeof value === "object" &amp;&amp; value !== null &amp;&amp; "kind" in value;
+}
+
+// unknown: the safe "I do not know yet" type. any turns checking off.
+const input: unknown = JSON.parse('{"kind":"circle","radius":2}');
+if (isShape(input) &amp;&amp; input.kind === "circle") {
+  console.log(input.radius);
+}</code></pre>
+        <pre><code>npx tsx src/labs/types-generics.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>10 a
+hello [ 1, 2, 3 ]
+text 5
+string of 3 list of 2 number 2.0
+9.0
+2</code></pre>
+        </div>
+        <h3>3.1 Generics</h3>
+        <p>A <strong>generic</strong> is a type with a blank, <code>T</code>, that is filled in when you use it. <code>first&lt;T&gt;(items: T[]): T | undefined</code> works for any list, and it remembers the type: <code>first([10, 20])</code> is <code>number | undefined</code>, because TypeScript works out <code>T</code> from what you pass. This is exactly how <code>retry&lt;T&gt;</code> and <code>mapLimit&lt;T, R&gt;</code> will work in section 5. Three things to know:</p>
+        <ul>
+          <li>A <strong>constraint</strong> (<code>T extends { length: number }</code>) limits what <code>T</code> may be, so the function body can safely use <code>.length</code>.</li>
+          <li>A <strong>default</strong> (<code>Box&lt;T = string&gt;</code>) is used when you do not give <code>T</code>.</li>
+          <li>Write <code>&lt;T&gt;</code> only when the type really has to flow from the input to the output. If a function does not need that, a plain type is simpler.</li>
+        </ul>
+        <h3>3.2 Narrowing</h3>
+        <p>Narrowing is checking a value so TypeScript knows more inside the check: <code>typeof</code>, <code>Array.isArray</code>, <code>in</code>, <code>===</code>. A <strong>discriminated union</strong> adds one field (<code>kind</code>) that tells the shapes apart, and <code>switch (shape.kind)</code> narrows each case. <code>Result&lt;T, E&gt;</code> in the next section uses the same trick with <code>ok</code>.</p>
+        <h3>3.3 unknown, any and never</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Type</th><th>Meaning</th><th>Use</th></tr></thead>
+            <tbody>
+              <tr><td><code>unknown</code></td><td>A value of a type you do not know yet. You must check it before you use it.</td><td>Data from outside: <code>JSON.parse</code>, <code>catch (e)</code>, request bodies.</td></tr>
+              <tr><td><code>any</code></td><td>Switches type checking off for that value. Anything is allowed, even mistakes.</td><td>Avoid it. It hides the bugs you are using TypeScript to find.</td></tr>
+              <tr><td><code>never</code></td><td>A value that cannot exist.</td><td>The "impossible" branch of an exhaustive <code>switch</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A <strong>type guard</strong> (<code>value is Shape</code>) is a function you write that checks a value, and TypeScript trusts the answer. Be careful: the compiler cannot check that your guard is right.</p>
+        <p>Now break it on purpose. Add a blank line and then these two lines at the end, and run <code>npm run typecheck</code>:</p>
+        <pre><code>longest(1, 2);
+input.toUpperCase();</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>src/labs/types-generics.ts(59,9): error TS2345: Argument of type 'number' is not assignable to parameter of type '{ length: number; }'.
+src/labs/types-generics.ts(60,1): error TS18046: 'input' is of type 'unknown'.</code></pre>
+        </div>
+        <p>The second error is <code>unknown</code> doing its job: it will not let you call a method before you have checked the value. If <code>input</code> had been <code>any</code>, that line would compile and crash at runtime. An <code>as</code> assertion (<code>input as string</code>) also compiles, because it tells the compiler to <em>trust you</em>, so use it rarely.</p>
+        <p>Delete those two lines. Then try one more: add a third shape to the <code>Shape</code> union, and leave <code>area</code> as it is. Change the type to:</p>
+        <pre><code>type Shape =
+  | { kind: "circle"; radius: number }
+  | { kind: "square"; side: number }
+  | { kind: "triangle"; base: number };</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>src/labs/types-generics.ts(42,13): error TS2322: Type '{ kind: "triangle"; base: number; }' is not assignable to type 'never'.</code></pre>
+        </div>
+        <p>The <code>never</code> check found the one place that forgot the new shape. That is the point of an exhaustive <code>switch</code>. Remove the triangle again.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 3</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c3-7"><label for="c3-7"><code>types-generics.ts</code> printed the output above and <code>typecheck</code> is clean again.</label></li>
+            <li><input type="checkbox" id="c3-8"><label for="c3-8">You saw the <code>never</code> error for the triangle.</label></li>
+            <li><input type="checkbox" id="c3-9"><label for="c3-9">You can say the difference between <code>unknown</code> and <code>any</code>, in your own words.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "docs: add typescript practice files"
+git push</code></pre>
+      </section>
+
+      <section id="s4">
+        <h2><span class="num">4.</span>Utility types and the Task domain <span class="time">30 min</span></h2>
+        <p><strong>Utility types</strong> build a new type from an existing one, so you describe a shape once and derive the rest.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Utility</th><th>Result</th></tr></thead>
+            <tbody>
+              <tr><td><code>Partial&lt;T&gt;</code></td><td>Every property optional.</td></tr>
+              <tr><td><code>Required&lt;T&gt;</code></td><td>Every property required.</td></tr>
+              <tr><td><code>Pick&lt;T, "a" \| "b"&gt;</code></td><td>Only the listed properties.</td></tr>
+              <tr><td><code>Omit&lt;T, "a"&gt;</code></td><td>Everything except the listed properties.</td></tr>
+              <tr><td><code>Record&lt;K, V&gt;</code></td><td>An object with a key for each <code>K</code>, each holding a <code>V</code>.</td></tr>
+              <tr><td><code>Readonly&lt;T&gt;</code></td><td>Every property <code>readonly</code>.</td></tr>
+              <tr><td><code>ReturnType&lt;typeof fn&gt;</code></td><td>The type a function returns.</td></tr>
+              <tr><td><code>Awaited&lt;T&gt;</code></td><td>The type inside a promise (<code>Awaited&lt;Promise&lt;number&gt;&gt;</code> is <code>number</code>).</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>4.1 The Task domain</h3>
+        <p>The Task API starts in M05. Define its types now, in one file, so every later module imports them. Create <code>src/domain/task.ts</code>:</p>
+        <pre><code>export const taskStatuses = ["todo", "in-progress", "done"] as const;
+export type TaskStatus = (typeof taskStatuses)[number];
+
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  readonly createdAt: Date;
+  updatedAt: Date;
+}
+
+// Derived from Task, so they can never drift apart
+export type CreateTaskInput = Omit&lt;Task, "id" | "createdAt" | "updatedAt"&gt;;
+export type UpdateTaskInput = Partial&lt;CreateTaskInput&gt;;
+
+// Either it worked (ok: true) or it failed (ok: false)
+export type Result&lt;T, E = Error&gt; =
+  | { ok: true; value: T }
+  | { ok: false; error: E };
+
+export const ok = &lt;T&gt;(value: T): Result&lt;T, never&gt; =&gt; ({ ok: true, value });
+export const err = &lt;E&gt;(error: E): Result&lt;never, E&gt; =&gt; ({ ok: false, error });</code></pre>
+        <ul>
+          <li><code>taskStatuses</code> is the list of values, and <code>TaskStatus</code> is the type made from it. The list and the type cannot disagree, because one comes from the other.</li>
+          <li><code>CreateTaskInput</code> is <code>Task</code> <strong>without</strong> the fields the server sets. <code>UpdateTaskInput</code> is <code>CreateTaskInput</code> with everything optional. They are never written by hand, so if <code>Task</code> changes they change with it. (M08 replaces them with Zod schemas, and the idea stays.)</li>
+          <li><code>Result&lt;T, E&gt;</code> is a discriminated union. A function returns <code>ok(value)</code> or <code>err(error)</code> and the caller must check <code>ok</code> before touching <code>value</code>. That is an alternative to throwing exceptions.</li>
+        </ul>
+        <h3>4.2 Use it</h3>
+        <p>Create <code>src/labs/task-demo.ts</code>:</p>
+        <pre><code>import { randomUUID } from "node:crypto";
+import { err, ok, taskStatuses } from "../domain/task.ts";
+import type { CreateTaskInput, Result, Task, UpdateTaskInput } from "../domain/task.ts";
+
+function createTask(input: CreateTaskInput): Task {
+  const now = new Date();
+  return { id: randomUUID(), ...input, createdAt: now, updatedAt: now };
+}
+
+function updateTask(task: Task, changes: UpdateTaskInput): Result&lt;Task, string&gt; {
+  if (changes.title !== undefined &amp;&amp; changes.title.trim() === "") {
+    return err("title cannot be empty");
+  }
+  return ok({ ...task, ...changes, updatedAt: new Date() });
+}
+
+const task = createTask({ title: "Write M04", status: "todo" });
+console.log(task.title, task.status);
+
+const result = updateTask(task, { status: "done" });
+if (result.ok) {
+  console.log("updated:", result.value.status); // value exists here
+} else {
+  console.log("failed:", result.error); // error exists here
+}
+console.log(updateTask(task, { title: " " }));
+
+// Record: one entry for every key of a union
+const counts: Record&lt;Task["status"], number&gt; = { todo: 1, "in-progress": 0, done: 0 };
+console.log(counts);
+
+// satisfies: check a value against a type, and keep its exact type
+const defaults = { status: "todo", pageSize: 20 } satisfies Partial&lt;Task&gt; &amp; { pageSize: number };
+console.log(defaults.pageSize.toFixed(0), taskStatuses.length);
+
+// ReturnType and Awaited read types out of functions
+type Created = ReturnType&lt;typeof createTask&gt;; // Task
+async function load() {
+  return [task];
+}
+type Loaded = Awaited&lt;ReturnType&lt;typeof load&gt;&gt;; // Task[]
+const loaded: Loaded = [task];
+const same: Created = task;
+console.log(loaded.length, same.id === task.id);
+
+// Pick: keep only some fields
+type Summary = Pick&lt;Task, "id" | "title"&gt;;
+const summary: Summary = { id: task.id, title: task.title };
+console.log(Object.keys(summary));
+
+// Readonly and Required
+const frozen: Readonly&lt;Task&gt; = task;
+const full: Required&lt;Task&gt; = { ...task, description: "now required" };
+console.log(frozen.title, full.description);</code></pre>
+        <pre><code>npx tsx src/labs/task-demo.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Write M04 todo
+updated: done
+{ ok: false, error: 'title cannot be empty' }
+{ todo: 1, 'in-progress': 0, done: 0 }
+20 3
+1 true
+[ 'id', 'title' ]
+Write M04 now required</code></pre>
+        </div>
+        <p>New in this file: <code>import type</code> (types only, as <code>verbatimModuleSyntax</code> requires: a normal <code>import { Task }</code> is error <code>TS1484</code>), <code>satisfies</code> (checks that a value fits a type, and keeps its exact type, so <code>defaults.pageSize</code> is a <code>number</code> and not "possibly missing"), and <code>ReturnType</code>/<code>Awaited</code> to read a type out of a function.</p>
+        <p>Now break it on purpose. Add a blank line and then these five lines to the end, and run <code>npm run typecheck</code>:</p>
+        <pre><code>createTask({ title: "No status" });
+updateTask(task, { status: "archived" });
+frozen.title = "x";
+task.createdAt = new Date();
+console.log(result.value);</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>src/labs/task-demo.ts(56,12): error TS2741: Property 'status' is missing in type '{ title: string; }' but required in type 'CreateTaskInput'.
+src/labs/task-demo.ts(57,20): error TS2322: Type '"archived"' is not assignable to type '"done" | "in-progress" | "todo" | undefined'.
+src/labs/task-demo.ts(58,8): error TS2540: Cannot assign to 'title' because it is a read-only property.
+src/labs/task-demo.ts(59,6): error TS2540: Cannot assign to 'createdAt' because it is a read-only property.
+src/labs/task-demo.ts(60,20): error TS2339: Property 'value' does not exist on type 'Result&lt;Task, string&gt;'.</code></pre>
+        </div>
+        <p>The last one is the point of <code>Result</code>: until you check <code>result.ok</code>, TypeScript will not let you read <code>value</code>. Delete the five lines, and check that <code>typecheck</code> is quiet.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 4</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c4-10"><label for="c4-10"><code>task-demo.ts</code> printed the output above, and <code>typecheck</code> is clean after you removed the bad lines.</label></li>
+            <li><input type="checkbox" id="c4-11"><label for="c4-11">You can say why <code>CreateTaskInput</code> is derived with <code>Omit</code> and not written out by hand.</label></li>
+            <li><input type="checkbox" id="c4-12"><label for="c4-12">You can say why you must check <code>result.ok</code> before reading <code>result.value</code>.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add task domain types"
+git push</code></pre>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>Exercise: port the Async toolkit <span class="time">40 min</span></h2>
+        <p>This is the module's deliverable. You will convert <code>src/toolkit/toolkit.js</code> from M02 to TypeScript, <strong>writing the types yourself</strong>. Nothing here tells you the answer. The compiler marks your work: you are done when <code>npm run typecheck</code> shows zero errors and <code>npm run check</code> prints <code>All checks passed</code>.</p>
+        <h3>5.1 Set up the exercise</h3>
+        <ol>
+          <li>Rename the two files. The code inside stays the same for now.</li>
+        </ol>
+        <pre><code>mv src/toolkit/toolkit.js src/toolkit/toolkit.ts
+mv src/toolkit/check.js src/toolkit/check.ts</code></pre>
+        <ol>
+          <li>In <code>src/toolkit/check.ts</code>, change the import on line 2 to end in <code>.ts</code>:</li>
+        </ol>
+        <pre><code>import { sleep, withTimeout, TimeoutError, retry, mapLimit } from "./toolkit.ts";</code></pre>
+        <ol>
+          <li>Make the <code>check</code> script use <code>tsx</code>:</li>
+        </ol>
+        <pre><code>npm pkg set scripts.check="tsx src/toolkit/check.ts"</code></pre>
+        <ol>
+          <li>Add the <strong>type tests</strong>. This file is the examiner. It calls your functions the way a real caller would, and it stops compiling if your types are wrong (for example, if you use <code>any</code>). It is never run. Create <code>src/toolkit/types.check.ts</code>, and copy it exactly:</li>
+        </ol>
+        <pre><code>// Type tests: this file is checked by `npm run typecheck`. It is never run.
+import { mapLimit, retry, sleep, withTimeout } from "./toolkit.ts";
+
+// Copy these two lines as they are. They fail to compile if two types differ.
+type Equal&lt;A, B&gt; = (&lt;X&gt;() =&gt; X extends A ? 1 : 2) extends &lt;X&gt;() =&gt; X extends B ? 1 : 2 ? true : false;
+type Expect&lt;T extends true&gt; = T;
+
+// retry gives back whatever its function resolves to
+const r1 = retry(async () =&gt; 42);
+const r2 = retry(async () =&gt; "text");
+export type Test1 = Expect&lt;Equal&lt;typeof r1, Promise&lt;number&gt;&gt;&gt;;
+export type Test2 = Expect&lt;Equal&lt;typeof r2, Promise&lt;string&gt;&gt;&gt;;
+
+// withTimeout keeps the type of the promise it wraps
+const w1 = withTimeout(sleep(10).then(() =&gt; true), 100);
+export type Test3 = Expect&lt;Equal&lt;typeof w1, Promise&lt;boolean&gt;&gt;&gt;;
+
+// mapLimit: the callback gets each item and returns each result
+const m1 = mapLimit([1, 2, 3], 2, async (n) =&gt; {
+  type Item = Expect&lt;Equal&lt;typeof n, number&gt;&gt;;
+  return String(n);
+});
+export type Test4 = Expect&lt;Equal&lt;typeof m1, Promise&lt;string[]&gt;&gt;&gt;;
+
+// These must be rejected. If the line below does NOT error, tsc reports an unused directive.
+// @ts-expect-error retries must be a number
+retry(async () =&gt; 1, { retries: "3" });
+// @ts-expect-error the callback must accept a number here
+mapLimit([1, 2, 3], 2, async (s: string) =&gt; s);</code></pre>
+        <ol>
+          <li>Type <code>sleep</code> and <code>TimeoutError</code> first. They are given, as the worked example of what to do. In <code>toolkit.ts</code>, change them to:</li>
+        </ol>
+        <pre><code>export const sleep = (ms: number): Promise&lt;void&gt; =&gt;
+  new Promise((resolve) =&gt; setTimeout(resolve, ms));
+
+export class TimeoutError extends Error {
+  constructor(ms: number) {
+    super(`Timed out after ${ms} ms`);
+    this.name = "TimeoutError";
+  }
+}</code></pre>
+        <p>A parameter always gets an annotation. <code>Promise&lt;void&gt;</code> says the promise resolves with no value. Now run the check:</p>
+        <pre><code>npm run typecheck</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>src/toolkit/check.ts(44,64): error TS7006: Parameter 'n' implicitly has an 'any' type.
+src/toolkit/toolkit.ts(13,29): error TS7006: Parameter 'promise' implicitly has an 'any' type.
+src/toolkit/toolkit.ts(13,38): error TS7006: Parameter 'ms' implicitly has an 'any' type.
+src/toolkit/toolkit.ts(14,7): error TS7034: Variable 'timer' implicitly has type 'any' in some locations where its type cannot be determined.
+src/toolkit/toolkit.ts(18,70): error TS7005: Variable 'timer' implicitly has an 'any' type.
+src/toolkit/toolkit.ts(21,29): error TS7006: Parameter 'fn' implicitly has an 'any' type.
+src/toolkit/toolkit.ts(32,32): error TS7006: Parameter 'items' implicitly has an 'any' type.
+src/toolkit/toolkit.ts(32,39): error TS7006: Parameter 'limit' implicitly has an 'any' type.
+src/toolkit/toolkit.ts(32,46): error TS7006: Parameter 'fn' implicitly has an 'any' type.
+src/toolkit/types.check.ts(11,28): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+src/toolkit/types.check.ts(12,28): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+src/toolkit/types.check.ts(16,28): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+src/toolkit/types.check.ts(19,42): error TS7006: Parameter 'n' implicitly has an 'any' type.
+src/toolkit/types.check.ts(20,22): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+src/toolkit/types.check.ts(23,28): error TS2344: Type 'false' does not satisfy the constraint 'true'.
+src/toolkit/types.check.ts(28,1): error TS2578: Unused '@ts-expect-error' directive.</code></pre>
+          <p>That is your to-do list. Your line numbers may differ a little.</p>
+        </div>
+        <h3>5.2 Your task</h3>
+        <p>Port these three functions. Do them one at a time, and run <code>npm run typecheck</code> after each. The errors in <code>types.check.ts</code> drop as you go.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Function</th><th>What the types must say</th></tr></thead>
+            <tbody>
+              <tr><td><code>withTimeout</code></td><td>Takes a promise of <em>some</em> type and a number of milliseconds, and returns a promise of <strong>the same type</strong>. It must still reject with <code>TimeoutError</code> when too slow.</td></tr>
+              <tr><td><code>retry</code></td><td>Takes a function that receives the attempt number and returns a promise of <em>some</em> type, and an optional options object with <code>retries</code> and <code>delayMs</code> (both numbers, both optional). It returns a promise of <strong>the type the function resolves with</strong>.</td></tr>
+              <tr><td><code>mapLimit</code></td><td>Takes a list of items of <em>some</em> type, a limit, and a function that receives an item and its index and returns a promise of <em>another</em> type. It returns a promise of <strong>a list of that other type</strong>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Rules: no <code>any</code>. Do not change what the functions do. The <code>unknown</code> type belongs in <code>catch</code>.</p>
+        <h3>5.3 Hints</h3>
+        <p>Try for a few minutes before you open a hint. Each function has two: a nudge, then the shape of the signature. The full answer is on the <a href="solution.html">solution page</a>, which explains every line.</p>
+        <details>
+          <summary>withTimeout: hint 1</summary>
+          <p>Which part of the type has to flow from the input promise to the output promise? That is the blank to make generic, and it is the same idea as <code>first&lt;T&gt;</code> in section 3. After you add it, <code>timer</code> and the promise you build for the timeout still need a type. <code>setTimeout</code> returns different things in browsers and in Node.js, so what type does <code>timer</code> hold? Look at what the compiler says.</p>
+        </details>
+        <details>
+          <summary>withTimeout: hint 2</summary>
+          <p>The signature has the shape <code>withTimeout&lt;T&gt;(promise: Promise&lt;T&gt;, ms: number): Promise&lt;T&gt;</code>. For <code>timer</code>, use <code>ReturnType&lt;typeof setTimeout&gt;</code>. The timeout promise never resolves with a value, only rejects, so it is a <code>Promise&lt;never&gt;</code>. If you forget that, <code>Promise.race</code> gives you a <code>Promise&lt;unknown&gt;</code>.</p>
+        </details>
+        <details>
+          <summary>retry: hint 1</summary>
+          <p><code>retry</code> needs one generic for the result, and it appears in two places: the type of <code>fn</code> and the return type. The options object is its own shape, with two optional fields. Naming it as an <code>interface</code> keeps the signature readable. What type does a function that returns a promise have? Remember <code>fn</code> receives the attempt number.</p>
+        </details>
+        <details>
+          <summary>retry: hint 2</summary>
+          <p><code>retry&lt;T&gt;(fn: (attempt: number) =&gt; Promise&lt;T&gt;, { retries = 3, delayMs = 100 }: RetryOptions = {}): Promise&lt;T&gt;</code>, where <code>RetryOptions</code> is an <code>interface</code> with <code>retries?: number</code> and <code>delayMs?: number</code>. In the <code>catch</code> block, write <code>catch (err: unknown)</code>. You then rethrow it, which is allowed for <code>unknown</code>.</p>
+        </details>
+        <details>
+          <summary>mapLimit: hint 1</summary>
+          <p>There are <strong>two</strong> blanks here: the type of each item going in, and the type of each result coming out. Which parts of the signature use each one? The results list is built up by assigning into an array by index. Because of <code>noUncheckedIndexedAccess</code>, reading <code>items[index]</code> may give you something extra. What does the compiler say it is?</p>
+        </details>
+        <details>
+          <summary>mapLimit: hint 2</summary>
+          <p><code>mapLimit&lt;T, R&gt;(items: readonly T[], limit: number, fn: (item: T, index: number) =&gt; Promise&lt;R&gt;): Promise&lt;R[]&gt;</code>. For the results, <code>const results: R[] = new Array(items.length)</code>. The inner <code>worker</code> function should be typed <code>Promise&lt;void&gt;</code>. For <code>items[index]</code>, the compiler says it is <code>T | undefined</code> even though your loop makes sure the index is valid. You decide how to tell it that.</p>
+        </details>
+        <h3>5.4 Compiler errors you will probably meet</h3>
+        <details>
+          <summary>Parameter implicitly has an 'any' type (TS7006)</summary>
+          <p>You have not annotated a parameter yet. Under <code>strict</code>, a parameter never gets a hidden <code>any</code>. Give it a type, or a generic.</p>
+        </details>
+        <details>
+          <summary>Type 'Promise&lt;unknown&gt;' is not assignable to type 'Promise&lt;T&gt;' (TS2322)</summary>
+          <p>Something in the chain has no type of its own, so it became <code>unknown</code>. In <code>withTimeout</code>, it is the promise made for the timeout. Say what it can resolve with: it never does.</p>
+        </details>
+        <details>
+          <summary>Type 'Timeout' is not assignable to type 'number' (TS2322)</summary>
+          <p>In Node.js, <code>setTimeout</code> returns an object, and not a number as in browsers. Do not guess the type: ask TypeScript for it, with <code>ReturnType&lt;typeof setTimeout&gt;</code>.</p>
+        </details>
+        <details>
+          <summary>Argument of type 'T | undefined' is not assignable to parameter of type 'T' (TS2345)</summary>
+          <p><code>noUncheckedIndexedAccess</code> makes <code>items[index]</code> possibly <code>undefined</code>. In <code>mapLimit</code> your loop already guarantees the index is valid. You can tell the compiler so with <code>as T</code>, which is a promise from you that the compiler cannot check, so use it only where, like here, you know it is true.</p>
+        </details>
+        <details>
+          <summary>Type 'false' does not satisfy the constraint 'true' (TS2344), in types.check.ts</summary>
+          <p>The type of a call is not exactly what the test expects. Often a type is <code>any</code>, <code>unknown</code> or still unannotated. Find the line the error points at, work out what type the call should return, and check which part of your signature decides it.</p>
+        </details>
+        <h3>5.5 Check and save</h3>
+        <p>When you think you are done:</p>
+        <pre><code>npm run typecheck
+npm run check</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 typecheck
+&gt; tsc --noEmit
+
+&gt; js-training@1.0.0 check
+&gt; tsx src/toolkit/check.ts
+
+ok  sleep
+ok  withTimeout
+ok  retry
+ok  mapLimit
+All checks passed</code></pre>
+        </div>
+        <p>If you are stuck after the hints, open the <a href="solution.html">solution page</a> (only after you have tried). It has the complete <code>toolkit.ts</code> and explains each type. Copy it, run the two commands, and read why each type is what it is, so you can do it alone next time.</p>
+        <p>Commit:</p>
+        <pre><code>git add .
+git commit -m "feat: port async toolkit to typescript"
+git push</code></pre>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 5</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c5-13"><label for="c5-13"><code>npm run typecheck</code> shows no errors, including in <code>types.check.ts</code>.</label></li>
+            <li><input type="checkbox" id="c5-14"><label for="c5-14"><code>npm run check</code> prints <code>All checks passed</code>.</label></li>
+            <li><input type="checkbox" id="c5-15"><label for="c5-15">You did not use <code>any</code> anywhere in <code>toolkit.ts</code>.</label></li>
+            <li><input type="checkbox" id="c5-16"><label for="c5-16">Your <code>toolkit.ts</code> still has the same exports as before: <code>sleep</code>, <code>TimeoutError</code>, <code>withTimeout</code>, <code>retry</code> and <code>mapLimit</code>.</label></li>
+          </ul>
+        </div>
+        <p>Keep <code>src/toolkit/toolkit.ts</code> as it is. M05 and later modules import from it.</p>
+      </section>
+
+      <section id="s6">
+        <h2><span class="num">6.</span>Running TypeScript on Node.js <span class="time">15 min</span></h2>
+        <p>There are three ways to run TypeScript. You have used the first.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Way</th><th>What it does</th><th>Checks types?</th></tr></thead>
+            <tbody>
+              <tr><td><strong><code>tsx</code></strong></td><td>Runs <code>.ts</code> files, removing the types first. The course's dev runner.</td><td>No</td></tr>
+              <tr><td><strong>Node.js type stripping</strong></td><td>Node.js 24 can run <code>.ts</code> files itself, with no tool, if the file only uses <em>erasable</em> syntax: syntax that is removed cleanly.</td><td>No</td></tr>
+              <tr><td><strong><code>tsc</code> build</strong></td><td>Compiles <code>.ts</code> to <code>.js</code> files in a folder, which Node.js then runs.</td><td>Yes</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The type check is always a separate step: <code>npm run typecheck</code>. Try each.</p>
+        <h3>6.1 Native type stripping</h3>
+        <pre><code>node src/toolkit/check.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>ok  sleep
+ok  withTimeout
+ok  retry
+ok  mapLimit
+All checks passed</code></pre>
+          <p>It works on Node.js 24 with no flag, because <code>toolkit.ts</code> and <code>check.ts</code> only use annotations, which can be removed. That is why <code>check.ts</code> imports <code>./toolkit.ts</code> with the extension: Node.js needs the real file name. (If Node.js prints an <code>ExperimentalWarning</code> line first, it is harmless.)</p>
+        </div>
+        <p>Things that need more than removing, such as <code>enum</code>, do not work. Create <code>src/labs/enum-demo.ts</code>:</p>
+        <pre><code>enum Color { Red, Green }
+console.log(Color.Red);</code></pre>
+        <pre><code>npx tsx src/labs/enum-demo.ts
+npm run typecheck
+node src/labs/enum-demo.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>0
+src/labs/enum-demo.ts(1,6): error TS1294: This syntax is not allowed when 'erasableSyntaxOnly' is enabled.
+SyntaxError [ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX]: TypeScript enum is not supported in strip-only mode</code></pre>
+          <p><code>tsx</code> runs it, <code>tsc</code> warns because of <code>erasableSyntaxOnly</code>, and Node.js refuses. That setting makes <code>tsc</code> catch it early. This is one more reason the course uses unions instead of <code>enum</code>. Delete <code>enum-demo.ts</code>.</p>
+        </div>
+        <p>Native type stripping becomes fully stable in Node.js 26, so this course stays on <code>tsx</code> for dev, and uses native stripping as awareness only.</p>
+        <h3>6.2 A tsc build</h3>
+        <p>Awareness only: a build writes JavaScript to a folder. <code>dist</code> is already in your <code>.gitignore</code>.</p>
+        <pre><code>npx tsc --noEmit false --outDir dist --rootDir src
+node dist/toolkit/check.js</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>ok  sleep
+ok  withTimeout
+ok  retry
+ok  mapLimit
+All checks passed</code></pre>
+          <p><code>tsc</code> rewrote the <code>./toolkit.ts</code> import to <code>./toolkit.js</code> in the output, because of <code>rewriteRelativeImportExtensions</code>. You will not need a build for this course. TypeScript 7 asks you to set <code>--rootDir</code> yourself, which is why it is there.</p>
+        </div>
+        <h3>6.3 process.env, @types and TypeScript 7</h3>
+        <p><code>process.env</code> values are <code>string | undefined</code>, because a variable may not be set. Create <code>src/labs/env.ts</code>:</p>
+        <pre><code>// process.env values are string | undefined: the variable may not be set
+const port = process.env.PORT; // string | undefined
+// port.toUpperCase(); // error: 'port' is possibly 'undefined'
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (value === undefined) {
+    throw new Error(`Missing environment variable ${name}`);
+  }
+  return value;
+}
+
+console.log(port ?? "(PORT not set)");
+console.log(requireEnv("GREETING"));</code></pre>
+        <pre><code>GREETING=hi npx tsx src/labs/env.ts
+npx tsx src/labs/env.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>(PORT not set)
+hi
+(PORT not set)
+.../src/labs/env.ts:8
+    throw new Error(`Missing environment variable ${name}`);
+          ^
+Error: Missing environment variable GREETING</code></pre>
+          <p>The first command sets <code>GREETING</code> for one run (that syntax works in Git Bash, macOS and Linux). The second does not, so <code>requireEnv</code> fails fast with a clear message, which is better than a <code>undefined</code> travelling through your program. The stack trace lines after the error are left out here.</p>
+        </div>
+        <p>Two more things to know:</p>
+        <ul>
+          <li><strong><code>@types/*</code> packages and <code>.d.ts</code> files.</strong> Some JavaScript libraries have no types of their own. A package named <code>@types/&lt;library&gt;</code> supplies them, as <code>@types/node</code> does for Node.js. A <code>.d.ts</code> file holds only type declarations, with no code. Your own projects rarely need to write one.</li>
+          <li><strong>TypeScript 6 to 7.</strong> TypeScript 7 is a new compiler written in Go: the same checks, much faster, and <code>strict</code> is on by default (you set it anyway, so it is clear). Old options were removed, and it does not yet have the programmatic JavaScript API that some tools use to embed the compiler. In M09 you will see why: the test setup uses a transform that only strips types, and <code>tsc --noEmit</code> stays the real type check.</li>
+        </ul>
+        <p>Commit:</p>
+        <pre><code>git add .
+git commit -m "docs: add typescript runner and env labs"
+git push</code></pre>
+      </section>
+
+      <section id="check">
+        <h2>Check your understanding <span class="time">5 min</span></h2>
+        <p>Answer each one in your head, then open it to compare.</p>
+        <details>
+          <summary>What is the difference between <code>unknown</code> and <code>any</code>?</summary>
+          <p>Both can hold any value. <code>any</code> turns off checking: you can call anything on it, and mistakes become runtime errors. <code>unknown</code> is safe: you must check the value (with <code>typeof</code>, a type guard or similar) before you use it. Use <code>unknown</code> for data you did not create, such as parsed JSON or a caught error.</p>
+        </details>
+        <details>
+          <summary>When do you use <code>type</code>, and when <code>interface</code>?</summary>
+          <p>Both describe object shapes. This course uses <code>interface</code> for the shape of an object you design (like <code>Task</code>), and <code>type</code> for unions, aliases and types built from other types (like <code>CreateTaskInput</code> and <code>Result</code>). A <code>type</code> can do things an <code>interface</code> cannot (unions, tuples), and interfaces with the same name merge. The most important rule is to be consistent.</p>
+        </details>
+        <details>
+          <summary><code>tsx</code> ran your file with a type error in it. Why, and what protects you?</summary>
+          <p><code>tsx</code> only removes the types and runs the JavaScript left. It never checks. <code>npm run typecheck</code> (<code>tsc --noEmit</code>) is the check, and it is a separate step that you, and later CI, must run.</p>
+        </details>
+        <details>
+          <summary>Why is <code>CreateTaskInput</code> written as <code>Omit&lt;Task, ...&gt;</code> and not as its own interface?</summary>
+          <p>So there is one source of truth. If <code>Task</code> gets a new field, the input types follow, and they cannot drift out of sync. This is what utility types are for.</p>
+        </details>
+        <details>
+          <summary>Why does <code>Result&lt;T, E&gt;</code> make you check <code>ok</code> before reading <code>value</code>?</summary>
+          <p>It is a discriminated union: the <code>ok</code> field says which of the two shapes you have. Before the check, TypeScript only knows it is one or the other, so reading <code>value</code> is an error. This makes failure impossible to forget, unlike an exception that nobody catches.</p>
+        </details>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <details>
+          <summary><code>npm run typecheck</code> says <code>error TS18003: No inputs were found</code></summary>
+            <p>There is no <code>.ts</code> file in <code>src</code> yet, or <code>include</code> in <code>tsconfig.json</code> is wrong. Create <code>src/labs/types-intro.ts</code> and check <code>"include": ["src"]</code>.</p>
+        </details>
+        <details>
+          <summary><code>Cannot find name 'node:assert/strict'</code> or <code>Cannot find name 'process'</code> (TS2591)</summary>
+            <p><code>tsconfig.json</code> is missing <code>"types": ["node"]</code>, or <code>@types/node</code> is not installed. Run <code>npm install -D @types/node@24</code> and check the <code>types</code> line. TypeScript no longer loads <code>@types</code> packages on its own.</p>
+        </details>
+        <details>
+          <summary><code>Cannot find module './toolkit.js'</code> (TS2307) or <code>ERR_MODULE_NOT_FOUND</code></summary>
+            <p>After the rename the file is <code>toolkit.ts</code>. Import it as <code>./toolkit.ts</code>, with the real extension, in <code>check.ts</code>, <code>types.check.ts</code> and anywhere else.</p>
+        </details>
+        <details>
+          <summary><code>'Task' is a type and must be imported using a type-only import</code> (TS1484)</summary>
+            <p><code>verbatimModuleSyntax</code> is on. Write <code>import type { Task } from ...</code>, or <code>import { type Task }</code>, for anything that is only a type.</p>
+        </details>
+        <details>
+          <summary><code>This syntax is not allowed when 'erasableSyntaxOnly' is enabled</code> (TS1294)</summary>
+            <p>You used <code>enum</code>, a class constructor parameter property (<code>constructor(private x: string)</code>), or a <code>namespace</code>. Use a union of literals, a normal property assignment, or a plain object instead.</p>
+        </details>
+        <details>
+          <summary><code>Object is possibly 'undefined'</code> on <code>list[0]</code> (TS2532 or TS18048)</summary>
+            <p><code>noUncheckedIndexedAccess</code> makes indexing return <code>T | undefined</code>. Check it first (<code>if (item !== undefined)</code>), use <code>?.</code>, or, if you know it is there, <code>as T</code>.</p>
+        </details>
+        <details>
+          <summary><code>tsx: command not found</code> or <code>npx</code> tries to install tsx</summary>
+            <p><code>tsx</code> is not installed in this repo. Run <code>npm install -D tsx</code>, from the repo root, and run it with <code>npx tsx</code> or an npm script.</p>
+        </details>
+        <details>
+          <summary>The editor shows red lines that <code>tsc</code> does not (or the other way round)</summary>
+            <p>VS Code may use its own TypeScript. Press <code>Ctrl+Shift+P</code> (<code>Cmd+Shift+P</code> on macOS), run <strong>TypeScript: Select TypeScript Version</strong>, and choose the workspace version. If the two disagree, trust the terminal: <code>npm run typecheck</code> is always the source of truth.</p>
+        </details>
+        <details>
+          <summary><code>npm run check</code> fails but <code>typecheck</code> is clean</summary>
+            <p>They test different things. <code>check</code> runs the toolkit's behaviour. If you changed what a function does while typing it, compare with the M02 version. Types should never change behaviour.</p>
+        </details>
+        <details>
+          <summary><code>types.check.ts</code> still fails and I do not see why</summary>
+            <p>Read the line the error points to, find what the call should give back, and look at which part of your signature decides that type. A <code>false</code> constraint error usually means a type is <code>any</code>, <code>unknown</code> or <code>Promise&lt;unknown&gt;</code>. If you are stuck, use the hints, then the <a href="solution.html">solution page</a>.</p>
+        </details>
+      </section>
+
+      <section id="done">
+        <h2>You're done when</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="d17"><label for="d17"><code>npm run typecheck</code> shows zero errors on a strict config.</label></li>
+          <li><input type="checkbox" id="d18"><label for="d18"><code>npm run check</code> passes, through <code>tsx</code>, on your TypeScript toolkit, with no <code>any</code> in it.</label></li>
+          <li><input type="checkbox" id="d19"><label for="d19"><code>src/domain/task.ts</code> has <code>Task</code>, <code>CreateTaskInput</code>, <code>UpdateTaskInput</code> and <code>Result&lt;T, E&gt;</code>.</label></li>
+          <li><input type="checkbox" id="d20"><label for="d20">You ran a <code>.ts</code> file with native type stripping on Node.js 24 and saw what happened with an <code>enum</code>.</label></li>
+          <li><input type="checkbox" id="d21"><label for="d21">You can explain <code>unknown</code> vs <code>any</code>, and <code>type</code> vs <code>interface</code>, in your own words.</label></li>
+          <li><input type="checkbox" id="d22"><label for="d22">Everything is committed and pushed to your repo.</label></li>
+        </ul>
+        <p>Keep <code>src/toolkit/toolkit.ts</code> and <code>src/domain/task.ts</code> as they are. M05 builds the Task API on them.</p>
+      </section>
+
+<nav class="pager" aria-label="Module navigation">
+        <a href="../m03-nodejs-runtime-npm/index.html">&larr; M03, Node.js Runtime &amp; npm</a>
+        <a href="../../index.html">All modules</a>
+        <span>Next: M05, Express (coming soon).</span>
+      </nav>
+    </main>
+  </div>
+</body>
+</html>
