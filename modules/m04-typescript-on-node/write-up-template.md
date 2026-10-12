@@ -49,6 +49,8 @@ stripping on Node 24.
 - My first plan counted a 5 min commit slot and a padded 60 min port. Making it an exercise brought the page to 180 min.
 - A `rm -rf *` in a scratch folder was blocked by the safety check, because the working directory had been reset to the repo. I used a fresh scratch folder instead.
 
+- (2026-10-12) While evaluating M05 I found that the brief's fixed Task contract uses `in_progress`, and this page used `in-progress`. I changed `types-core.ts`, `task.ts` and `task-demo.ts` and their outputs in both page twins, and re-ran the type check. The M04 `Task` still has `createdAt` and `updatedAt`, which go beyond the contract's field list; M05 keeps them.
+
 ## Checkpoint evidence
 
 Show zero `tsc --noEmit` errors on your strict config, the toolkit running via `tsx`, and what

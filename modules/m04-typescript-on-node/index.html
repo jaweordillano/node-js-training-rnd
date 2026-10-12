@@ -185,7 +185,7 @@ const pair: [string, number] = ["Ana", 30]; // exactly a string, then a number
 
 // Unions and literal types
 type Id = string | number;
-type Status = "todo" | "in-progress" | "done"; // only these three strings
+type Status = "todo" | "in_progress" | "done"; // only these three strings
 const status: Status = "todo";
 
 function show(id: Id): string {
@@ -409,7 +409,7 @@ git push</code></pre>
         </div>
         <h3>4.1 The Task domain</h3>
         <p>The Task API starts in M05. Define its types now, in one file, so every later module imports them. Create <code>src/domain/task.ts</code>:</p>
-        <pre><code>export const taskStatuses = ["todo", "in-progress", "done"] as const;
+        <pre><code>export const taskStatuses = ["todo", "in_progress", "done"] as const;
 export type TaskStatus = (typeof taskStatuses)[number];
 
 export interface Task {
@@ -467,7 +467,7 @@ if (result.ok) {
 console.log(updateTask(task, { title: " " }));
 
 // Record: one entry for every key of a union
-const counts: Record&lt;Task["status"], number&gt; = { todo: 1, "in-progress": 0, done: 0 };
+const counts: Record&lt;Task["status"], number&gt; = { todo: 1, in_progress: 0, done: 0 };
 console.log(counts);
 
 // satisfies: check a value against a type, and keep its exact type
@@ -499,7 +499,7 @@ console.log(frozen.title, full.description);</code></pre>
           <pre><code>Write M04 todo
 updated: done
 { ok: false, error: 'title cannot be empty' }
-{ todo: 1, 'in-progress': 0, done: 0 }
+{ todo: 1, in_progress: 0, done: 0 }
 20 3
 1 true
 [ 'id', 'title' ]
@@ -515,7 +515,7 @@ console.log(result.value);</code></pre>
         <div class="expect">
           <p class="expect-title">You should see</p>
           <pre><code>src/labs/task-demo.ts(56,12): error TS2741: Property 'status' is missing in type '{ title: string; }' but required in type 'CreateTaskInput'.
-src/labs/task-demo.ts(57,20): error TS2322: Type '"archived"' is not assignable to type '"done" | "in-progress" | "todo" | undefined'.
+src/labs/task-demo.ts(57,20): error TS2322: Type '"archived"' is not assignable to type '"done" | "in_progress" | "todo" | undefined'.
 src/labs/task-demo.ts(58,8): error TS2540: Cannot assign to 'title' because it is a read-only property.
 src/labs/task-demo.ts(59,6): error TS2540: Cannot assign to 'createdAt' because it is a read-only property.
 src/labs/task-demo.ts(60,20): error TS2339: Property 'value' does not exist on type 'Result&lt;Task, string&gt;'.</code></pre>
@@ -889,7 +889,7 @@ git push</code></pre>
 <nav class="pager" aria-label="Module navigation">
         <a href="../m03-nodejs-runtime-npm/index.html">&larr; M03, Node.js Runtime &amp; npm</a>
         <a href="../../index.html">All modules</a>
-        <span>Next: M05, Express (coming soon).</span>
+        <a href="../m05-express-task-api-v1/index.html">Next: M05, Express: Routing, Middleware &amp; Error Handling &rarr;</a>
       </nav>
     </main>
   </div>

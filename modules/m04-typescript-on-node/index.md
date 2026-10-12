@@ -188,7 +188,7 @@ const pair: [string, number] = ["Ana", 30]; // exactly a string, then a number
 
 // Unions and literal types
 type Id = string | number;
-type Status = "todo" | "in-progress" | "done"; // only these three strings
+type Status = "todo" | "in_progress" | "done"; // only these three strings
 const status: Status = "todo";
 
 function show(id: Id): string {
@@ -444,7 +444,7 @@ git push
 The Task API starts in M05. Define its types now, in one file, so every later module imports them. Create `src/domain/task.ts`:
 
 ```ts
-export const taskStatuses = ["todo", "in-progress", "done"] as const;
+export const taskStatuses = ["todo", "in_progress", "done"] as const;
 export type TaskStatus = (typeof taskStatuses)[number];
 
 export interface Task {
@@ -506,7 +506,7 @@ if (result.ok) {
 console.log(updateTask(task, { title: " " }));
 
 // Record: one entry for every key of a union
-const counts: Record<Task["status"], number> = { todo: 1, "in-progress": 0, done: 0 };
+const counts: Record<Task["status"], number> = { todo: 1, in_progress: 0, done: 0 };
 console.log(counts);
 
 // satisfies: check a value against a type, and keep its exact type
@@ -544,7 +544,7 @@ npx tsx src/labs/task-demo.ts
 Write M04 todo
 updated: done
 { ok: false, error: 'title cannot be empty' }
-{ todo: 1, 'in-progress': 0, done: 0 }
+{ todo: 1, in_progress: 0, done: 0 }
 20 3
 1 true
 [ 'id', 'title' ]
@@ -567,7 +567,7 @@ console.log(result.value);
 
 ```text
 src/labs/task-demo.ts(56,12): error TS2741: Property 'status' is missing in type '{ title: string; }' but required in type 'CreateTaskInput'.
-src/labs/task-demo.ts(57,20): error TS2322: Type '"archived"' is not assignable to type '"done" | "in-progress" | "todo" | undefined'.
+src/labs/task-demo.ts(57,20): error TS2322: Type '"archived"' is not assignable to type '"done" | "in_progress" | "todo" | undefined'.
 src/labs/task-demo.ts(58,8): error TS2540: Cannot assign to 'title' because it is a read-only property.
 src/labs/task-demo.ts(59,6): error TS2540: Cannot assign to 'createdAt' because it is a read-only property.
 src/labs/task-demo.ts(60,20): error TS2339: Property 'value' does not exist on type 'Result<Task, string>'.
@@ -975,4 +975,4 @@ Read the line the error points to, find what the call should give back, and look
 
 Keep `src/toolkit/toolkit.ts` and `src/domain/task.ts` as they are. M05 builds the Task API on them.
 
-Previous: [M03, Node.js Runtime & npm](../m03-nodejs-runtime-npm/index.md). Next: M05, Express: Routing, Middleware & Error Handling (coming soon).
+Previous: [M03, Node.js Runtime & npm](../m03-nodejs-runtime-npm/index.md). Next: [M05, Express: Routing, Middleware & Error Handling](../m05-express-task-api-v1/index.md).
