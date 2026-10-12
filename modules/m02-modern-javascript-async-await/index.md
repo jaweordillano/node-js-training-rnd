@@ -763,4 +763,4 @@ A promise was rejected and nobody handled it. Find the call that was not `await`
 
 Keep `src/toolkit/toolkit.js` as it is. M04 converts it to TypeScript, and later modules reuse its helpers.
 
-Next: M03, Node.js Runtime & npm (coming soon).
+Next: [M03, Node.js Runtime & npm](../m03-nodejs-runtime-npm/index.md).

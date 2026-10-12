@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M03 — Node.js Runtime &amp; npm</title>
+  <meta name="description" content="Learn what Node.js is and how it runs code, use its core modules, manage dependencies safely with npm, and build a streaming log-report CLI and a bare HTTP server in your node-js-training project.">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <a class="back" href="../../index.html">&larr; All modules</a>
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#overview">Overview &amp; time plan</a></li>
+        <li><a href="#s1">1. What Node.js is, and modules</a></li>
+        <li><a href="#s2">2. Core APIs and process</a></li>
+        <li><a href="#s3">3. Build the log-report CLI</a></li>
+        <li><a href="#s4">4. Build the bare HTTP server</a></li>
+        <li><a href="#s5">5. npm and supply-chain hygiene</a></li>
+        <li><a href="#s6">6. Debugging</a></li>
+        <li><a href="#s7">7. Merge by pull request</a></li>
+        <li><a href="#check">Check your understanding</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#done">You're done when</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Module M03 · Week 1 · Days 4-5 · about 3 hours</p>
+        <h1>Node.js Runtime &amp; npm</h1>
+        <p class="lede">Learn what Node.js is and how it runs your code, use its built-in modules, manage dependencies with npm, and build two small programs: a CLI that streams a 100 MB log file, and an HTTP server with no framework.</p>
+      </header>
+
+      <section id="overview">
+        <h2>Overview &amp; time plan</h2>
+        <p><strong>Builds on:</strong> M01 and M02. You need the <code>node-js-training</code> repo, Node.js 24, <code>"type": "module"</code> in <code>package.json</code>, and the branch and pull request steps from M01. Everything you write here goes into that same repo. This module teaches what a <em>JavaScript/Node.js module</em> is (ESM vs CommonJS), so the word "module" in section 1 means that. The course "modules" (M01, M02, M03) are the lessons.</p>
+        <p>You already write JavaScript. This module is about the <strong>runtime</strong> that runs it: what Node.js gives you beyond the language (files, networking, processes), and how to pull in other people's code safely with npm. You build two things:</p>
+        <ul>
+          <li><strong><code>log-report</code></strong>, a command-line tool that reads a log file of about 100 MB and writes a JSON report, without loading the whole file into memory.</li>
+          <li><strong>A bare HTTP server</strong> with three JSON endpoints, written with only Node.js's built-in <code>node:http</code> module. It is meant to be a little painful. After it, you will know exactly what Express (M05) fixes.</li>
+        </ul>
+        <p>You finish by merging both to <code>main</code> with a pull request. Nothing from this module is ported later. The Task API starts again in M05, but you will reuse the ideas.</p>
+        <ol class="plan">
+          <li><a href="#s1">What Node.js is, and modules</a> <span class="time">20 min</span></li>
+          <li><a href="#s2">Core APIs and process</a> <span class="time">25 min</span></li>
+          <li><a href="#s3">Build the log-report CLI</a> <span class="time">50 min</span></li>
+          <li><a href="#s4">Build the bare HTTP server</a> <span class="time">35 min</span></li>
+          <li><a href="#s5">npm and supply-chain hygiene</a> <span class="time">25 min</span></li>
+          <li><a href="#s6">Debugging</a> <span class="time">10 min</span></li>
+          <li><a href="#s7">Merge by pull request</a> <span class="time">10 min</span></li>
+          <li><a href="#check">Check your understanding</a> <span class="time">5 min</span></li>
+        </ol>
+        <p>This page moves quickly. Type each code block yourself, run it, and compare with the <em>You should see</em> box. Commands are written for Git Bash on Windows, and for macOS and Linux Terminal. Your file paths, UUIDs, timings and memory numbers will differ from the examples. If anything else differs, check <a href="#troubleshooting">Troubleshooting</a>.</p>
+        <p>Start from a branch, so the pull request at the end is easy. Inside <code>node-js-training</code>, on <code>main</code> with a clean <code>git status</code>:</p>
+        <pre><code>git switch -c feat/m03-runtime-npm
+mkdir -p src/log-report src/server</code></pre>
+      </section>
+
+      <section id="s1">
+        <h2><span class="num">1.</span>What Node.js is, and modules <span class="time">20 min</span></h2>
+        <h3>1.1 What Node.js is</h3>
+        <p>Node.js is a program that runs JavaScript outside the browser. It is made of three parts:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Part</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><strong>V8</strong></td><td>Google's JavaScript engine (the same one as Chrome). It compiles and runs your JavaScript.</td></tr>
+              <tr><td><strong>libuv</strong></td><td>A C library that gives Node.js its <strong>event loop</strong>, the <strong>thread pool</strong>, and non-blocking access to files, timers and the network.</td></tr>
+              <tr><td><strong>Core APIs</strong></td><td>Built-in modules such as <code>node:fs</code>, <code>node:http</code> and <code>node:path</code>, and globals such as <code>fetch</code>. They connect your JavaScript to the operating system.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Your JavaScript runs on <strong>one thread</strong>. When it asks for something slow (read a file, call an API), Node.js hands that job to libuv and keeps running other code. The network is handled by the operating system. Some jobs, such as file access, hashing and compression, run on a small <strong>thread pool</strong> of 4 worker threads. When the job finishes, its callback goes into the event loop's queue, which you met in M02. This is <strong>non-blocking</strong> I/O: while one request waits, your program serves another.</p>
+        <p>The opposite is <strong>blocking</strong>: code that holds the single thread so nothing else can run. That is fine for a one-off script and fatal for a busy server.</p>
+        <div class="callout note">
+          <p class="callout-title">Where Node.js fits</p>
+          <p>Node.js is a good fit for programs that spend most of their time <strong>waiting</strong>: web servers and APIs, command-line tools, anything that talks to files, databases and other services. It is a poor fit for long CPU-heavy work (video encoding, big maths) on the main thread, because that blocks everything. Node.js has <strong>worker threads</strong> for that work, which this course does not cover.</p>
+        </div>
+        <h3>1.2 See blocking for yourself</h3>
+        <p>Create <code>src/labs/runtime.js</code>. A timer asks for 100 ms, but the program then blocks for 500 ms.</p>
+        <pre><code>// Blocking vs non-blocking
+console.log("1 start");
+
+const started = Date.now();
+setTimeout(() =&gt; {
+  console.log(`3 timer fired after ${Date.now() - started} ms (asked for 100)`);
+}, 100);
+
+while (Date.now() - started &lt; 500) {
+  // busy-wait: nothing else can run during this loop
+}
+
+console.log(`2 blocked for ${Date.now() - started} ms`);
+
+// Where am I?
+console.log("file:", import.meta.filename);
+console.log("folder:", import.meta.dirname);</code></pre>
+        <pre><code>node src/labs/runtime.js</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>1 start
+2 blocked for 500 ms
+file: /home/you/node-js-training/src/labs/runtime.js
+folder: /home/you/node-js-training/src/labs
+3 timer fired after 500 ms (asked for 100)</code></pre>
+          <p>Your two paths are your own (on Windows they start with <code>C:\</code>). The timer is late because a timer can only run when the one thread is free.</p>
+        </div>
+        <h3>1.3 Modules: ESM and CommonJS</h3>
+        <p>A <strong>JavaScript module</strong> is a file that shares values with other files. Node.js has two systems:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th></th><th>ES modules (ESM)</th><th>CommonJS (CJS)</th></tr></thead>
+            <tbody>
+              <tr><td>Share</td><td><code>export const x = 1</code></td><td><code>module.exports = { x }</code></td></tr>
+              <tr><td>Use</td><td><code>import { x } from "./a.js"</code></td><td><code>const { x } = require("./a.js")</code></td></tr>
+              <tr><td>This file's path</td><td><code>import.meta.filename</code>, <code>import.meta.dirname</code></td><td><code>__filename</code>, <code>__dirname</code></td></tr>
+              <tr><td>Relative imports</td><td>Need the extension (<code>./a.js</code>)</td><td>Extension optional</td></tr>
+              <tr><td>Top-level <code>await</code></td><td>Yes</td><td>No</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>ESM is the standard that browsers and TypeScript use, so this course uses it. Node.js decides which system a <code>.js</code> file uses from the nearest <code>package.json</code>: <code>"type": "module"</code> (set in M01) means ESM. You will meet CommonJS in older tutorials and packages, so be able to recognise <code>require</code> and <code>module.exports</code>.</p>
+        <p>Always import built-in modules with the <strong><code>node:</code> prefix</strong>: <code>import path from "node:path"</code>. It tells readers (and Node.js) that this is a built-in and not a package from npm with a similar name.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 1</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c1-1"><label for="c1-1">You saw <code>3 timer fired</code> print last, after about 500 ms.</label></li>
+            <li><input type="checkbox" id="c1-2"><label for="c1-2">You can say, in one sentence, why a blocked thread delays a timer.</label></li>
+            <li><input type="checkbox" id="c1-3"><label for="c1-3">You can say what <code>"type": "module"</code> changes.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s2">
+        <h2><span class="num">2.</span>Core APIs and process <span class="time">25 min</span></h2>
+        <p>Create <code>src/labs/core-apis.js</code> and add each block to the <strong>end</strong> of the file. Each block is one small tour of a core API.</p>
+        <pre><code>import path from "node:path";
+import os from "node:os";
+import { randomUUID } from "node:crypto";
+import { EventEmitter } from "node:events";
+import { setTimeout as sleep } from "node:timers/promises";
+import { promisify } from "node:util";
+
+// path: build paths without worrying about / or \
+const file = path.join(import.meta.dirname, "notes.txt");
+console.log(path.basename(file), path.extname(file), path.basename(path.dirname(file)));
+
+// os: facts about the machine
+console.log(os.platform(), os.cpus().length &gt; 0, typeof os.homedir());
+
+// crypto: a random id
+console.log(randomUUID().length);
+
+// events: one thing announces, others listen
+const bus = new EventEmitter();
+bus.on("greet", (name) =&gt; console.log(`hello, ${name}`));
+bus.emit("greet", "Ada");
+
+// timers/promises: sleep without writing your own
+await sleep(50);
+
+// util.promisify: turn a callback function into a promise function
+const legacy = (n, callback) =&gt; setTimeout(() =&gt; callback(null, n * 2), 10);
+console.log(await promisify(legacy)(21));</code></pre>
+        <p>Why these? <code>path.join</code> builds paths that work on every operating system. <code>os</code> tells you about the machine. <code>randomUUID</code> makes ids you will use for the server's notes. <code>EventEmitter</code> is the "one thing announces, others listen" pattern that streams and servers are built on. <code>node:timers/promises</code> is the built-in version of your M02 <code>sleep</code>. <code>promisify</code> wraps an old callback-style function, like the ones in M02's last section.</p>
+        <p>Now the globals. These need no import:</p>
+        <pre><code>// Globals: no import needed
+const url = new URL("https://example.com/tasks?status=done&amp;limit=5");
+console.log(url.pathname, url.searchParams.get("limit"));
+
+const original = { tags: ["a"], nested: { n: 1 } };
+const copy = structuredClone(original);
+copy.nested.n = 2;
+console.log(original.nested.n, copy.nested.n);
+
+const controller = new AbortController();
+const waiting = sleep(5000, null, { signal: controller.signal }).catch((e) =&gt; e.name);
+controller.abort();
+console.log(await waiting);</code></pre>
+        <p><code>URL</code> parses addresses (you will use it in the server). <code>structuredClone</code> makes a deep copy, so changing <code>copy</code> leaves <code>original</code> alone. An <code>AbortController</code> cancels work: you pass its <code>signal</code> to the work, and <code>abort()</code> stops it. <code>fetch</code> is also a global, and you used it in M02.</p>
+        <p>Last, the <code>process</code> object, which describes the running program:</p>
+        <pre><code>// process: argv, env, exit code
+console.log(process.argv.slice(2));
+console.log(process.env.GREETING ?? "(GREETING not set)");
+process.exitCode = 3;</code></pre>
+        <p><code>process.argv</code> is the list of command-line words (the first two are Node.js and your script, so <code>slice(2)</code> gives yours). <code>process.env</code> holds <strong>environment variables</strong>: settings from outside the program, such as a port or a password, so they stay out of your code. The <strong>exit code</strong> tells whatever ran your program if it worked: <code>0</code> means success and anything else means failure. Run it:</p>
+        <pre><code>node src/labs/core-apis.js hello --flag
+echo $?</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>notes.txt .txt labs
+linux true string
+36
+hello, Ada
+42
+/tasks 5
+1 2
+AbortError
+[ 'hello', '--flag' ]
+(GREETING not set)
+3</code></pre>
+          <p>The second line starts with <code>win32</code> on Windows and <code>darwin</code> on macOS. The last <code>3</code> comes from <code>echo $?</code>. In PowerShell, use <code>$LASTEXITCODE</code> instead.</p>
+        </div>
+        <h3>2.1 Configuration with .env</h3>
+        <p>Set a variable for one run, then keep settings in a file:</p>
+        <pre><code>GREETING=hi node src/labs/core-apis.js | tail -1</code></pre>
+        <p>That form works on macOS, Linux and Git Bash. Better, put settings in a <code>.env</code> file (it is already in <code>.gitignore</code>, from M01, so it never reaches GitHub) and tell Node.js to load it with <code>--env-file</code>:</p>
+        <pre><code>echo "GREETING=from the file" &gt; .env
+node --env-file=.env src/labs/core-apis.js | tail -2</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>[]
+from the file</code></pre>
+        </div>
+        <p>No packages needed. Keep <code>.env</code> for section 4. Use <code>--env-file-if-exists=.env</code> when the file is optional.</p>
+        <div class="callout note">
+          <p class="callout-title">Awareness only</p>
+          <p>Node.js also has a built-in test runner (<code>node:test</code>) and a built-in SQLite module (<code>node:sqlite</code>). This course uses Jest (M09) and Prisma (M07) instead, so you do not need either. Streams (<code>node:stream</code>) are the next section, and <code>node:http</code> is section 4.</p>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 2</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c2-4"><label for="c2-4"><code>core-apis.js</code> prints the output above, and <code>echo $?</code> shows <code>3</code>.</label></li>
+            <li><input type="checkbox" id="c2-5"><label for="c2-5">You loaded <code>GREETING</code> from <code>.env</code> with <code>--env-file</code>.</label></li>
+            <li><input type="checkbox" id="c2-6"><label for="c2-6">You can say why a secret belongs in <code>.env</code> and not in your code.</label></li>
+          </ul>
+        </div>
+        <p>Commit your work so far:</p>
+        <pre><code>git add .
+git commit -m "docs: add runtime and core API labs"</code></pre>
+      </section>
+
+      <section id="s3">
+        <h2><span class="num">3.</span>Build the log-report CLI <span class="time">50 min</span></h2>
+        <p>The goal: read a log file of about 100 MB, count requests by status code and by path, and write a JSON report. The point: do it <strong>without holding the file in memory</strong>.</p>
+        <h3>3.1 Make the log file</h3>
+        <p>Each line of the log is one request: a timestamp, a status code, a method, a path, and how many milliseconds it took.</p>
+        <pre><code>2026-03-01T00:00:00.000Z 200 GET /api/users/me 111</code></pre>
+        <p>You will not write the generator, so copy it as it is. It makes 2,000,000 lines. Create <code>src/log-report/generate-log.js</code>:</p>
+        <pre><code>// Writes a fake access log, one line per request:
+//   2026-03-01T00:00:00.000Z 200 GET /api/tasks 42
+// Run it once: node src/log-report/generate-log.js
+import { createWriteStream } from "node:fs";
+import { mkdir } from "node:fs/promises";
+import { once } from "node:events";
+import path from "node:path";
+
+const LINES = 2_000_000;
+const output = path.join(import.meta.dirname, "../../data/access.log");
+
+const statuses = [200, 200, 200, 200, 200, 201, 204, 301, 304, 400, 401, 404, 404, 500, 503];
+const methods = ["GET", "GET", "GET", "POST", "PUT", "DELETE"];
+const paths = ["/", "/login", "/api/tasks", "/api/tasks/1", "/api/tasks/2", "/api/users",
+  "/api/users/me", "/health", "/static/app.js", "/static/style.css", "/favicon.ico", "/search"];
+
+// A tiny seeded random generator, so everyone gets the same file
+let seed = 42;
+const random = () =&gt; (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+const pick = (list) =&gt; list[Math.floor(random() * list.length)];
+
+await mkdir(path.dirname(output), { recursive: true });
+const out = createWriteStream(output);
+const start = Date.parse("2026-03-01T00:00:00Z");
+
+for (let i = 0; i &lt; LINES; i++) {
+  const time = new Date(start + i * 40).toISOString();
+  const line = `${time} ${pick(statuses)} ${pick(methods)} ${pick(paths)} ${Math.floor(random() * 500)}\n`;
+  // write() returns false when the buffer is full: wait until it drains
+  if (!out.write(line)) await once(out, "drain");
+}
+
+out.end();
+await once(out, "finish");
+console.log(`Wrote ${LINES} lines to ${output}`);</code></pre>
+        <p>The file goes in a <code>data/</code> folder. It is about 100 MB, so it must <strong>never</strong> be committed. Add <code>data</code> to <code>.gitignore</code>, then run the generator (a few seconds):</p>
+        <pre><code>printf '\ndata\n' &gt;&gt; .gitignore
+node src/log-report/generate-log.js</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Wrote 2000000 lines to /home/you/node-js-training/data/access.log</code></pre>
+        </div>
+        <p>Check the file:</p>
+        <pre><code>ls -lh data/access.log
+wc -l data/access.log
+head -3 data/access.log
+git status</code></pre>
+        <p>You should see a file of about 93 MB, 2000000 lines, lines that look like the example above, and <code>git status</code> listing only <code>.gitignore</code> (not <code>data/</code>). On Windows Git Bash, <code>ls</code>, <code>wc</code> and <code>head</code> work the same way.</p>
+        <p>Notice what the generator does: it writes with a <strong>stream</strong>, and <code>write()</code> returns <code>false</code> when its buffer is full, so it waits for the <code>drain</code> event. That waiting is called <strong>backpressure</strong>. A stream never needs the whole file at once, and it slows down a fast producer for a slow consumer. Keep that idea for the next steps.</p>
+        <h3>3.2 The wrong way, on purpose</h3>
+        <p>The easy way to count lines is to read the whole file into a string. Create <code>src/log-report/read-all.js</code>:</p>
+        <pre><code>// The wrong way, on purpose: load the whole file, then count lines
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
+const file = path.join(import.meta.dirname, "../../data/access.log");
+const text = await readFile(file, "utf8");
+const lines = text.split("\n");
+
+const peakMb = Math.round(process.resourceUsage().maxRSS / 1024);
+console.log(`${lines.length - 1} lines, peak memory ${peakMb} MB`);</code></pre>
+        <pre><code>node src/log-report/read-all.js</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>2000000 lines, peak memory 321 MB</code></pre>
+          <p>Your number will differ by machine and operating system, but it will be several times the size of the file.</p>
+        </div>
+        <p>It works, but Node.js held the whole file in memory (as a string, and then as an array of lines). With a 100 MB file that is wasteful. With a 5 GB file it crashes, and a web server that did this for every request would run out of memory. Keep the number. You will compare it.</p>
+        <h3>3.3 The right way: stream it</h3>
+        <p>A <strong>stream</strong> gives you a file in small chunks, one at a time. <code>createReadStream</code> reads chunks, and <code>node:readline</code> turns chunks into lines. <code>for await</code> takes the lines one by one. Only the running counts stay in memory.</p>
+        <p>Create <code>src/log-report/log-report.js</code>. Read it in three parts after the code.</p>
+        <pre><code>import { createReadStream } from "node:fs";
+import { writeFile, mkdir } from "node:fs/promises";
+import { createInterface } from "node:readline";
+import path from "node:path";
+import { parseArgs } from "node:util";
+
+const { values } = parseArgs({
+  options: {
+    input: { type: "string", short: "i", default: "data/access.log" },
+    output: { type: "string", short: "o", default: "data/report.json" },
+    top: { type: "string", short: "t", default: "5" },
+  },
+});
+const top = Number(values.top);
+
+if (!Number.isInteger(top) || top &lt; 1) {
+  console.error(`--top must be a whole number of 1 or more, got "${values.top}"`);
+  process.exit(2);
+}
+
+const byStatus = {};
+const pathCounts = new Map();
+let totalLines = 0;
+let malformed = 0;
+
+try {
+  const lines = createInterface({
+    input: createReadStream(values.input),
+    crlfDelay: Infinity,
+  });
+
+  // Lines arrive one at a time. Only the counts stay in memory.
+  for await (const line of lines) {
+    totalLines++;
+    const parts = line.split(" ");
+    if (parts.length !== 5) {
+      malformed++;
+      continue;
+    }
+    const [, status, , requestPath] = parts;
+    byStatus[status] = (byStatus[status] ?? 0) + 1;
+    pathCounts.set(requestPath, (pathCounts.get(requestPath) ?? 0) + 1);
+  }
+} catch (error) {
+  console.error(`Could not read ${values.input}: ${error.message}`);
+  process.exit(1);
+}
+
+const topPaths = [...pathCounts]
+  .sort((a, b) =&gt; b[1] - a[1])
+  .slice(0, top)
+  .map(([requestPath, count]) =&gt; ({ path: requestPath, count }));
+
+const report = { input: values.input, totalLines, malformed, byStatus, topPaths };
+
+await mkdir(path.dirname(values.output), { recursive: true });
+await writeFile(values.output, JSON.stringify(report, null, 2));
+
+const peakMb = Math.round(process.resourceUsage().maxRSS / 1024);
+console.log(`Read ${totalLines} lines, wrote ${values.output}, peak memory ${peakMb} MB`);</code></pre>
+        <ul>
+          <li><strong>Options.</strong> <code>parseArgs</code> (from <code>node:util</code>) reads the command line for you. Each option has a type, an optional one-letter <code>short</code> form and a default. Values from the command line are always strings, so <code>--top</code> is converted with <code>Number</code> and checked.</li>
+          <li><strong>The loop.</strong> Each line is split on spaces into five parts: time, status, method, path, milliseconds. The code counts the status and the path. A line that does not have five parts is counted as <code>malformed</code> instead of crashing the program.</li>
+          <li><strong>Failing well.</strong> A bad option exits with code <code>2</code>, and a file that cannot be read exits with code <code>1</code>, both with a message on stderr (<code>console.error</code>). Exit <code>0</code> stays for success, so scripts and other tools can tell what happened.</li>
+        </ul>
+        <p>Run it:</p>
+        <pre><code>node src/log-report/log-report.js
+head -12 data/report.json</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Read 2000000 lines, wrote data/report.json, peak memory 73 MB
+{
+  "input": "data/access.log",
+  "totalLines": 2000000,
+  "malformed": 0,
+  "byStatus": {
+    "200": 667365,
+    "201": 133486,
+    "204": 132975,
+    "301": 133509,
+    "304": 133565,
+    "400": 133145,</code></pre>
+          <p>The counts are exactly these if you used the generator unchanged (its random numbers are seeded). The peak memory is far below <code>read-all.js</code>. About 45 MB of it is Node.js itself. The gap gets bigger as the file gets bigger, because the streaming version does not grow with the file.</p>
+        </div>
+        <p>Now try the options and the failures:</p>
+        <pre><code>node src/log-report/log-report.js --top 2 -o data/small.json
+node src/log-report/log-report.js -i nope.log
+echo $?
+node src/log-report/log-report.js --top abc
+echo $?</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Read 2000000 lines, wrote data/small.json, peak memory 73 MB
+Could not read nope.log: ENOENT: no such file or directory, open 'nope.log'
+1
+--top must be a whole number of 1 or more, got "abc"
+2</code></pre>
+        </div>
+        <div class="callout warn">
+          <p class="callout-title">Streaming means no JSON.parse of the whole file</p>
+          <p>The trick only works if each line can be handled alone. Counting and filtering do. Sorting the whole file, or parsing one big JSON file, needs all of it at once. That is when you reach for a database (M06).</p>
+        </div>
+        <h3>3.4 A script for it</h3>
+        <p>Add scripts so you do not type long commands. <code>npm pkg set</code> edits <code>package.json</code> for you:</p>
+        <pre><code>npm pkg set scripts.report="node src/log-report/log-report.js"
+npm run report -- --top 3
+node --run report</code></pre>
+        <p><code>npm run report -- --top 3</code> passes <code>--top 3</code> to your script (the <code>--</code> separates npm's own options from yours). <code>node --run</code> runs a script from <code>package.json</code> too, faster than npm, but it does not pass through npm features. Both print the same line you saw above.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 3</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c3-7"><label for="c3-7">The report shows 2000000 lines and the counts above.</label></li>
+            <li><input type="checkbox" id="c3-8"><label for="c3-8">You saw your own numbers: <code>read-all.js</code> used several times more memory than <code>log-report.js</code>.</label></li>
+            <li><input type="checkbox" id="c3-9"><label for="c3-9"><code>git status</code> does not list <code>data/</code>.</label></li>
+            <li><input type="checkbox" id="c3-10"><label for="c3-10">You can say, in your own words, what would break if <code>log-report.js</code> loaded the whole file first.</label></li>
+          </ul>
+        </div>
+        <p>Commit:</p>
+        <pre><code>git add .
+git commit -m "feat: add streaming log-report cli"</code></pre>
+      </section>
+
+      <section id="s4">
+        <h2><span class="num">4.</span>Build the bare HTTP server <span class="time">35 min</span></h2>
+        <p>Now the second program. You will build a small notes API with only <code>node:http</code>. Every convenience you would expect is missing on purpose. Pay attention to what is annoying, because you will use that list at the end of the section.</p>
+        <p>The three endpoints:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Request</th><th>Result</th></tr></thead>
+            <tbody>
+              <tr><td><code>GET /health</code></td><td><code>200</code> with <code>{ "status": "ok" }</code></td></tr>
+              <tr><td><code>GET /notes</code></td><td><code>200</code> with a list of notes</td></tr>
+              <tr><td><code>POST /notes</code></td><td><code>201</code> with the new note. Body: <code>{ "text": "..." }</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>4.1 Write the server</h3>
+        <p>Create <code>src/server/server.js</code>:</p>
+        <pre><code>import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
+
+const PORT = Number(process.env.PORT ?? 3000);
+const notes = [];
+
+function sendJson(res, status, data) {
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(data));
+}
+
+// A request body arrives in chunks. You collect them yourself.
+async function readJson(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const text = Buffer.concat(chunks).toString("utf8");
+  return JSON.parse(text); // throws on bad JSON
+}
+
+const server = createServer(async (req, res) =&gt; {
+  // Routing by hand: match the method and the path yourself
+  const { pathname } = new URL(req.url, `http://${req.headers.host}`);
+
+  try {
+    if (pathname === "/health") {
+      if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed" });
+      return sendJson(res, 200, { status: "ok" });
+    }
+
+    if (pathname === "/notes") {
+      if (req.method === "GET") return sendJson(res, 200, notes);
+
+      if (req.method === "POST") {
+        const body = await readJson(req);
+        if (typeof body?.text !== "string" || body.text.trim() === "") {
+          return sendJson(res, 400, { error: "text must be a non-empty string" });
+        }
+        const note = { id: randomUUID(), text: body.text.trim() };
+        notes.push(note);
+        return sendJson(res, 201, note);
+      }
+
+      return sendJson(res, 405, { error: "Method not allowed" });
+    }
+
+    sendJson(res, 404, { error: "Not found" });
+  } catch (error) {
+    if (error instanceof SyntaxError) return sendJson(res, 400, { error: "Body is not valid JSON" });
+    console.error(error);
+    sendJson(res, 500, { error: "Internal server error" });
+  }
+});
+
+server.listen(PORT, () =&gt; console.log(`Listening on http://localhost:${PORT}`));
+
+// Stop cleanly on Ctrl+C or a kill signal
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () =&gt; {
+    console.log(`${signal} received, closing`);
+    server.close(() =&gt; process.exit(0));
+  });
+}</code></pre>
+        <p>What each part does, and why it is awkward:</p>
+        <ul>
+          <li><strong><code>createServer</code></strong> gives you a function that runs once per request, with a request (<code>req</code>) and a response (<code>res</code>). That is all you get.</li>
+          <li><strong>Routing</strong> is <code>if</code> on <code>req.method</code> and the path. You also write the 404 and 405 answers.</li>
+          <li><strong>The body</strong> arrives as a stream of chunks. You gather them, join them and parse the JSON yourself, and handle the bad-JSON case yourself.</li>
+          <li><strong><code>sendJson</code></strong> exists because <code>res</code> does not know about JSON. You set the status and the header every time.</li>
+          <li><strong><code>PORT</code></strong> comes from <code>process.env</code>, as in section 2.</li>
+          <li><strong>Signals.</strong> <code>Ctrl+C</code> sends <code>SIGINT</code>, and a stop request from a hosting service sends <code>SIGTERM</code>. Your handler closes the server, so it stops taking new requests and finishes the ones it has, then exits with <code>0</code>.</li>
+        </ul>
+        <h3>4.2 Run it with .env and --watch</h3>
+        <p>Put a port in <code>.env</code>, add two scripts, and start the server in development mode:</p>
+        <pre><code>echo "PORT=4000" &gt; .env
+npm pkg set scripts.server="node --env-file-if-exists=.env src/server/server.js"
+npm pkg set scripts.dev="node --watch --env-file-if-exists=.env src/server/server.js"
+npm run dev</code></pre>
+        <p><code>--watch</code> restarts the server each time you save a file, so you do not stop and start it by hand. Leave it running.</p>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 dev
+&gt; node --watch --env-file-if-exists=.env src/server/server.js
+
+Listening on http://localhost:4000</code></pre>
+          <p>The first line shows the <code>name</code> in your <code>package.json</code>.</p>
+        </div>
+        <h3>4.3 Call it</h3>
+        <p>Open a <strong>second terminal</strong> in the same folder and call the three endpoints. <code>curl</code> comes with Git Bash, macOS and Linux. <code>-i</code> prints the status line, and <code>-d</code> sends a body.</p>
+        <pre><code>curl -i localhost:4000/health
+curl -i -X POST localhost:4000/notes -H "Content-Type: application/json" -d '{"text":"first note"}'
+curl -i localhost:4000/notes</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>HTTP/1.1 200 OK
+{"status":"ok"}
+
+HTTP/1.1 201 Created
+{"id":"0f102a55-c552-4fe3-aaca-4736e067054c","text":"first note"}
+
+HTTP/1.1 200 OK
+[{"id":"0f102a55-c552-4fe3-aaca-4736e067054c","text":"first note"}]</code></pre>
+          <p>Each response also has headers between the status line and the body. Your <code>id</code> is different. The notes live in memory, so they vanish when the server restarts.</p>
+        </div>
+        <p>Now break it on purpose, to see the error answers:</p>
+        <pre><code>curl -i -X POST localhost:4000/notes -H "Content-Type: application/json" -d '{oops'
+curl -i -X POST localhost:4000/notes -H "Content-Type: application/json" -d '{"text":""}'
+curl -i localhost:4000/nope
+curl -i -X DELETE localhost:4000/notes</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>HTTP/1.1 400 Bad Request
+{"error":"Body is not valid JSON"}
+
+HTTP/1.1 400 Bad Request
+{"error":"text must be a non-empty string"}
+
+HTTP/1.1 404 Not Found
+{"error":"Not found"}
+
+HTTP/1.1 405 Method Not Allowed
+{"error":"Method not allowed"}</code></pre>
+        </div>
+        <p>Go back to the first terminal and press <code>Ctrl+C</code>.</p>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>SIGINT received, closing</code></pre>
+          <p>You get your prompt back. Without the signal handler, the process would be killed on the spot, in the middle of any request.</p>
+        </div>
+        <h3>4.4 What hurt?</h3>
+        <p>This is the point of the lab. Before you read on, write down <strong>three or more things</strong> that were awkward or repetitive in <code>server.js</code>, in your own words. Add them to your project <code>README.md</code> under a heading <code>## What Express would remove</code>. You will commit that file with the rest. Then open the list below and compare.</p>
+        <details>
+          <summary>What a framework like Express removes</summary>
+          <ul>
+            <li><strong>Routing by hand.</strong> The <code>if (pathname === ...)</code> and <code>if (req.method === ...)</code> chain grows with every endpoint. There are no route patterns, so something like <code>/notes/:id</code> would need string splitting. Express gives you <code>app.get("/notes", handler)</code> and <code>req.params.id</code>.</li>
+            <li><strong>Reading the body.</strong> Collecting chunks, joining them and calling <code>JSON.parse</code> is code you would repeat for every route. Express has one line of middleware for it.</li>
+            <li><strong>JSON responses.</strong> <code>sendJson</code> sets the header and the status every time. Express has <code>res.status(201).json(note)</code>.</li>
+            <li><strong>Errors in one place.</strong> The <code>try/catch</code> handles every failure for every route, and the 404 and 405 answers are written by hand. Express has error-handling middleware and a built-in 404 path.</li>
+            <li><strong>Shared steps (middleware).</strong> Logging, authentication and body parsing for every request would mean calling extra functions at the top of your one big handler. Express lets you add a step once, for all routes or some.</li>
+            <li><strong>Query strings and validation.</strong> <code>new URL</code> does the parsing, but checking <code>text</code> is still your own <code>if</code>. M08 replaces that with Zod.</li>
+          </ul>
+        </details>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 4</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c4-11"><label for="c4-11">All seven <code>curl</code> calls gave the status codes above.</label></li>
+            <li><input type="checkbox" id="c4-12"><label for="c4-12"><code>Ctrl+C</code> printed <code>SIGINT received, closing</code> and stopped the server.</label></li>
+            <li><input type="checkbox" id="c4-13"><label for="c4-13">You wrote your own three-or-more-item list in <code>README.md</code> before reading the sample.</label></li>
+          </ul>
+        </div>
+        <p>Commit:</p>
+        <pre><code>git add .
+git commit -m "feat: add bare node:http server"</code></pre>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>npm and supply-chain hygiene <span class="time">25 min</span></h2>
+        <p>So far your program has <strong>no dependencies</strong>: you used only Node.js's built-in modules. Most real projects also install packages from the npm registry. That saves time, and it also means running other people's code on your machine. This section is about doing it safely.</p>
+        <h3>5.1 package.json</h3>
+        <p>Open <code>package.json</code>. The parts that matter:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Field</th><th>What it is</th></tr></thead>
+            <tbody>
+              <tr><td><code>name</code>, <code>version</code></td><td>What the project is called, and its version.</td></tr>
+              <tr><td><code>type</code></td><td><code>"module"</code> makes <code>.js</code> files ESM (section 1).</td></tr>
+              <tr><td><code>scripts</code></td><td>Named commands: <code>npm run &lt;name&gt;</code>. <code>start</code> and <code>test</code> can be run as <code>npm start</code> and <code>npm test</code>.</td></tr>
+              <tr><td><code>dependencies</code></td><td>Packages your program needs when it runs.</td></tr>
+              <tr><td><code>devDependencies</code></td><td>Packages you need only while building: formatters, test tools.</td></tr>
+              <tr><td><code>engines</code></td><td>The Node.js versions the project supports. npm only warns unless you turn on <code>engine-strict</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Add <code>engines</code>, to match the <code>.nvmrc</code> from M01:</p>
+        <pre><code>npm pkg set engines.node="&gt;=24"</code></pre>
+        <h3>5.2 Install a package and read the version</h3>
+        <p>You will install one well-known package, <code>prettier</code> (a code formatter), at an <strong>old</strong> version on purpose, so you have something to update.</p>
+        <pre><code>npm install -D prettier@3.0.0</code></pre>
+        <p><code>-D</code> (short for <code>--save-dev</code>) records it under <code>devDependencies</code>. Check <code>package.json</code>:</p>
+        <pre><code>"devDependencies": {
+  "prettier": "^3.0.0"
+}</code></pre>
+        <p>That <code>^3.0.0</code> is a <strong>semver range</strong>. A version has three parts, <code>major.minor.patch</code>:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Range</th><th>Allows</th><th>Means</th></tr></thead>
+            <tbody>
+              <tr><td><code>^3.0.0</code></td><td><code>3.0.0</code> up to (not including) <code>4.0.0</code></td><td>New features and fixes, no breaking changes. The default.</td></tr>
+              <tr><td><code>~3.0.0</code></td><td><code>3.0.0</code> up to (not including) <code>3.1.0</code></td><td>Bug fixes only.</td></tr>
+              <tr><td><code>3.0.0</code></td><td>exactly <code>3.0.0</code></td><td>No movement.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Two new things now exist: a <code>node_modules/</code> folder (the installed code, already in <code>.gitignore</code>) and <strong><code>package-lock.json</code></strong>. The lockfile records the <strong>exact</strong> version of every package, including packages that your package needs, so everyone gets the same code. <strong>Commit the lockfile, never <code>node_modules</code>.</strong></p>
+        <h3>5.3 Outdated, update, and ci</h3>
+        <pre><code>npm outdated</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Package   Current  Wanted  Latest  Location               Depended by
+prettier    3.0.0  3.9.10  3.9.10  node_modules/prettier  node-js-training</code></pre>
+          <p>Your Wanted and Latest versions will be newer than these, and the last column shows your folder name. <em>Wanted</em> is the highest version your range allows, and <em>Latest</em> is the newest that exists. They match here because <code>^3.0.0</code> allows everything up to 4.0.0.</p>
+        </div>
+        <pre><code>npm update
+git diff --stat</code></pre>
+        <p><code>npm update</code> moves to <em>Wanted</em> and edits the lockfile. It leaves the range in <code>package.json</code> alone.</p>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code> package-lock.json | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)</code></pre>
+          <p>The numbers will vary a little. <code>package.json</code> is not listed, because <code>^3.0.0</code> already allowed the new version. If your new version is a <strong>major</strong> version, update with <code>npm install prettier@latest</code> instead, and read its release notes first.</p>
+        </div>
+        <p><strong><code>npm install</code> and <code>npm ci</code> are different.</strong> <code>npm install</code> can change the lockfile. <strong><code>npm ci</code></strong> (clean install) deletes <code>node_modules</code> and installs <em>exactly</em> what the lockfile says, and fails if <code>package.json</code> and the lockfile disagree. Use <code>npm ci</code> on servers and in CI, so a build is the same every time. Try it:</p>
+        <pre><code>npm ci
+npm ls</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>js-training@1.0.0 /home/you/node-js-training
+└── prettier@3.9.10</code></pre>
+        </div>
+        <h3>5.4 npx and audit</h3>
+        <p><code>npx</code> runs a package's command without installing it globally. Since <code>prettier</code> is now in your project, <code>npx</code> finds it there:</p>
+        <pre><code>npx prettier --version
+npm audit</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>3.9.10
+found 0 vulnerabilities</code></pre>
+        </div>
+        <p><code>npm audit</code> checks your installed versions against a list of known security problems. If it reports problems, <code>npm audit fix</code> applies safe fixes. Read what it changes. Do not use <code>npm audit fix --force</code>, because it may install breaking major versions.</p>
+        <h3>5.5 Before you install anything</h3>
+        <p>Anyone can publish to npm, and an install can run code on your machine. <strong>Lifecycle scripts</strong> (<code>preinstall</code>, <code>install</code>, <code>postinstall</code>) in a package run automatically during <code>npm install</code>. Attacks use them, and use look-alike names (<code>expres</code> for <code>express</code>) too. Before you add a package:</p>
+        <ul>
+          <li><strong>Check the name</strong> letter by letter against the package's own documentation.</li>
+          <li><strong>Look at the page</strong> on npmjs.com: weekly downloads, last publish date, the linked repository, the maintainers.</li>
+          <li><strong>Read what it pulls in.</strong> <code>npm view &lt;name&gt; dependencies</code> lists its dependencies. Fewer is better.</li>
+          <li><strong>Look for install scripts:</strong> <code>npm view &lt;name&gt; scripts</code> (look for <code>preinstall</code>, <code>install</code> and <code>postinstall</code>). To install without running scripts, add <code>--ignore-scripts</code>.</li>
+          <li><strong>Do you need it?</strong> A built-in module (this module is full of them) has no supply chain at all.</li>
+          <li><strong>Review the lockfile diff</strong> in every pull request that changes <code>package-lock.json</code>. New packages, a changed <code>resolved</code> address, or a surprising number of changes deserve a question.</li>
+        </ul>
+        <p>Try the check on the package you installed:</p>
+        <pre><code>npm view prettier scripts.postinstall dependencies license</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>MIT</code></pre>
+          <p>Prettier has no dependencies and no <code>postinstall</code> script, so those two lines do not print.</p>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 5</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c5-14"><label for="c5-14"><code>package.json</code> lists <code>prettier</code> under <code>devDependencies</code>, and <code>engines</code>.</label></li>
+            <li><input type="checkbox" id="c5-15"><label for="c5-15"><code>npm ci</code>, <code>npm ls</code> and <code>npm audit</code> all work.</label></li>
+            <li><input type="checkbox" id="c5-16"><label for="c5-16">You can say the difference between <code>^3.0.0</code> and <code>~3.0.0</code>, and between <code>npm install</code> and <code>npm ci</code>.</label></li>
+            <li><input type="checkbox" id="c5-17"><label for="c5-17">You can name two things you check before installing a package.</label></li>
+          </ul>
+        </div>
+        <p>Commit:</p>
+        <pre><code>git add .
+git commit -m "chore: add prettier as a dev dependency"</code></pre>
+      </section>
+
+      <section id="s6">
+        <h2><span class="num">6.</span>Debugging <span class="time">10 min</span></h2>
+        <h3>6.1 Console methods</h3>
+        <p><code>console.log</code> is not the only one. Create <code>src/labs/debug.js</code> and run it:</p>
+        <pre><code>const rows = [
+  { status: 200, count: 3 },
+  { status: 404, count: 1 },
+];
+console.table(rows);
+
+console.dir({ a: { b: { c: { d: 1 } } } }, { depth: null });
+
+console.time("sum");
+let sum = 0;
+for (let i = 0; i &lt; 1e7; i++) sum += i;
+console.timeEnd("sum");
+
+console.error("this line goes to stderr");</code></pre>
+        <pre><code>node src/labs/debug.js</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>┌─────────┬────────┬───────┐
+│ (index) │ status │ count │
+├─────────┼────────┼───────┤
+│ 0       │ 200    │ 3     │
+│ 1       │ 404    │ 1     │
+└─────────┴────────┴───────┘
+{
+  a: { b: { c: { d: 1 } } }
+}
+sum: 6.44ms
+this line goes to stderr</code></pre>
+          <p>Your <code>sum</code> time will differ. <code>console.table</code> draws a table, <code>console.dir</code> with <code>depth: null</code> prints nested objects in full (<code>console.log</code> stops at depth 2), <code>console.time</code> measures, and <code>console.error</code> writes to <strong>stderr</strong>, a separate stream from normal output. Try <code>node src/labs/debug.js 2&gt;/dev/null</code> to hide it.</p>
+        </div>
+        <h3>6.2 Read a stack trace</h3>
+        <p>Make an error on purpose, using an option <code>log-report</code> does not know:</p>
+        <pre><code>node src/log-report/log-report.js --bogus</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>node:internal/util/parse_args/parse_args:102
+      throw new ERR_PARSE_ARGS_UNKNOWN_OPTION(
+            ^
+
+TypeError [ERR_PARSE_ARGS_UNKNOWN_OPTION]: Unknown option '--bogus'
+    at checkOptionUsage (node:internal/util/parse_args/parse_args:102:13)
+    at ...
+    at parseArgs (node:internal/util/parse_args/parse_args:374:3)
+    at file:///home/you/node-js-training/src/log-report/log-report.js:7:20
+    ...</code></pre>
+          <p>The middle lines are trimmed here, and yours show more.</p>
+        </div>
+        <p>Read it <strong>top to bottom</strong>: the first line says what and where Node.js stopped, the error line gives the type, the code and the message (this tells you the problem), and the <code>at</code> lines are the <strong>call stack</strong>, newest first. Skip lines starting with <code>node:</code> (that is Node.js's own code) and find the first line with <em>your</em> file. Here, it is <code>log-report.js:7:20</code>: line 7, column 20, which is the <code>parseArgs(</code> call. The fix is in your code, even though the error started deeper.</p>
+        <h3>6.3 The debugger</h3>
+        <p>A <strong>breakpoint</strong> pauses your program so you can look at its variables. In VS Code:</p>
+        <ol>
+          <li>Open <code>src/server/server.js</code> and click in the margin left of the line <code>const { pathname } = ...</code> to set a red dot.</li>
+          <li>Open the command palette (<code>Ctrl+Shift+P</code>, or <code>Cmd+Shift+P</code> on macOS), run <strong>Debug: JavaScript Debug Terminal</strong>, and in that terminal run <code>npm run server</code>.</li>
+          <li>In another terminal, run <code>curl localhost:4000/health</code>.</li>
+          <li>VS Code stops on your line. Hover over <code>req.method</code> and <code>req.url</code>, or open the Variables panel. Use the toolbar to step over (F10) or continue (F5).</li>
+        </ol>
+        <p>That works because VS Code starts Node.js with <code>--inspect</code>, which opens a port a debugger can connect to. You can also run <code>node --inspect src/server/server.js</code> and attach any debugger.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 6</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c6-18"><label for="c6-18">You ran <code>debug.js</code> and saw the table.</label></li>
+            <li><input type="checkbox" id="c6-19"><label for="c6-19">You can find the first line of your own code in a stack trace.</label></li>
+            <li><input type="checkbox" id="c6-20"><label for="c6-20">VS Code stopped at your breakpoint in <code>server.js</code> and you saw <code>req.method</code>.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s7">
+        <h2><span class="num">7.</span>Merge by pull request <span class="time">10 min</span></h2>
+        <p>You work alone, so you review your own pull request. That still helps: the diff view shows what you are about to merge, and you will notice mistakes you did not see while writing. You have not been on <code>main</code> since section 1, so your branch holds everything.</p>
+        <ol class="steps">
+          <li>
+            <p>Push the branch. The first push needs the upstream flag:</p>
+            <pre><code>git status
+git push -u origin feat/m03-runtime-npm</code></pre>
+          </li>
+          <li>
+            <p>Open your repo on GitHub and click <strong>Compare &amp; pull request</strong>, as in M01. Set the title to <code>feat: add log-report cli and bare http server</code>.</p>
+          </li>
+          <li>
+            <p>Open the <strong>Files changed</strong> tab and read it once. Check you see <strong>no</strong> <code>data/</code> folder, no <code>.env</code> and no <code>node_modules</code>. You should see <code>package-lock.json</code>: scroll to it and look at what was added. This is the lockfile diff review from section 5.</p>
+          </li>
+          <li>
+            <p>Click <strong>Merge pull request</strong>, then confirm.</p>
+          </li>
+          <li>
+            <p>Update your local <code>main</code>:</p>
+            <pre><code>git switch main
+git pull
+git log --oneline -3</code></pre>
+            <div class="expect">
+              <p class="expect-title">You should see</p>
+              <pre><code>a1b2c3d (HEAD -&gt; main, origin/main) Merge pull request #2 from you/feat/m03-runtime-npm
+...</code></pre>
+              <p>Your hashes and PR number will differ.</p>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section id="check">
+        <h2>Check your understanding <span class="time">5 min</span></h2>
+        <p>Answer each one in your head, then open it to compare.</p>
+        <details>
+          <summary>In <code>runtime.js</code>, a 100 ms timer fired after about 500 ms. Why?</summary>
+          <p>Node.js runs your JavaScript on one thread. The <code>while</code> loop kept that thread busy, so the event loop could not run the timer's callback until the loop finished. A timer is a minimum delay, not a promise.</p>
+        </details>
+        <details>
+          <summary>Why does <code>log-report</code> use a stream, and what breaks if it uses <code>readFile</code>?</summary>
+          <p>A stream hands over the file in small chunks, so memory use stays about the same whatever the file size. <code>readFile</code> puts the whole file in memory first (about 321 MB against 73 MB for you), and for a file bigger than about half a gigabyte it fails outright (a string has a maximum length). The same mistake in a web server multiplies by the number of requests.</p>
+        </details>
+        <details>
+          <summary>What does <code>^1.4.2</code> allow, and why commit <code>package-lock.json</code>?</summary>
+          <p><code>^1.4.2</code> allows any <code>1.x.y</code> version from <code>1.4.2</code> up, but not <code>2.0.0</code>. The lockfile pins the exact version of every package, so everyone (and the server) installs the same code. <code>npm ci</code> installs exactly from it.</p>
+        </details>
+        <details>
+          <summary>Why use the <code>node:</code> prefix, and why <code>import.meta.dirname</code> in an ES module?</summary>
+          <p><code>node:path</code> says plainly that it is a built-in, and it cannot be confused with an npm package of a similar name. ES modules have no <code>__dirname</code>, so <code>import.meta.dirname</code> gives the folder of the current file, which makes paths work no matter where you run the command from.</p>
+        </details>
+        <details>
+          <summary>Name two things about a package that make you stop before running <code>npm install</code> on it.</summary>
+          <p>Examples: the name is one letter away from a popular package; it has a <code>postinstall</code> script you do not understand; it has few downloads, no repository or a very recent first publish; it pulls in a large tree of dependencies for a small job; or a built-in module already does the job.</p>
+        </details>
+        <details>
+          <summary>From the bare server, name two things Express removes.</summary>
+          <p>Any two from the list in section 4.4: route matching, reading and parsing the body, a JSON response helper, one place for errors, middleware for shared steps.</p>
+        </details>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <details>
+          <summary><code>ERR_MODULE_NOT_FOUND</code> or <code>Cannot find module</code></summary>
+            <p>Check the path and the file name in your <code>import</code>, and that a relative import ends in <code>.js</code> (<code>./a.js</code>). Check you run the command from the <code>node-js-training</code> folder. For a package, run <code>npm ci</code> and try again.</p>
+        </details>
+        <details>
+          <summary><code>ReferenceError: require is not defined in ES module scope</code></summary>
+            <p>You used CommonJS in an ES module. Replace <code>const x = require("node:fs")</code> with <code>import x from "node:fs"</code>. <code>"type": "module"</code> in <code>package.json</code> makes every <code>.js</code> file an ES module.</p>
+        </details>
+        <details>
+          <summary><code>EADDRINUSE: address already in use :::4000</code></summary>
+            <p>Another program (often your earlier server) is using the port. Stop it with <code>Ctrl+C</code>, or change <code>PORT</code> in <code>.env</code>. To find the process on macOS and Linux, run <code>lsof -i :4000</code>, then <code>kill &lt;pid&gt;</code>. On Windows, run <code>netstat -ano | findstr :4000</code>, then <code>taskkill /PID &lt;pid&gt; /F</code>.</p>
+        </details>
+        <details>
+          <summary><code>node: .env: not found</code></summary>
+            <p>The <code>.env</code> file is not in the folder where you ran the command. Create it in the repo root, or use <code>--env-file-if-exists=.env</code> as in the scripts.</p>
+        </details>
+        <details>
+          <summary><code>curl</code> shows <code>Could not resolve host</code> or a connection error</summary>
+            <p>Check the server is running in the other terminal and prints <code>Listening on http://localhost:4000</code> (or your <code>PORT</code>). In Windows PowerShell, <code>curl</code> is an alias for another command: use Git Bash, or write <code>curl.exe</code>.</p>
+        </details>
+        <details>
+          <summary><code>curl</code> says <code>{"error":"Body is not valid JSON"}</code> for a body that looks right</summary>
+            <p>Quotes got changed by the terminal. Use single quotes around the JSON in Git Bash, macOS and Linux (<code>-d '{"text":"hi"}'</code>). Windows PowerShell and cmd need different escaping, so use Git Bash.</p>
+        </details>
+        <details>
+          <summary><code>Ctrl+C</code> does not stop the server or it stays open for a while</summary>
+            <p>After <code>Ctrl+C</code>, the handler waits for open connections to finish. Press <code>Ctrl+C</code> again to force it, and make sure no <code>curl</code> call is still running.</p>
+        </details>
+        <details>
+          <summary><code>git status</code> shows <code>data/access.log</code> as a new file</summary>
+            <p>The <code>data</code> line is missing from <code>.gitignore</code>, or was added on the same line as another entry. Open <code>.gitignore</code> and put <code>data</code> on its own line. If you already staged it, run <code>git rm --cached -r data</code>.</p>
+        </details>
+        <details>
+          <summary><code>npm ci</code> says <code>package.json and package-lock.json are not in sync</code></summary>
+            <p>You edited <code>package.json</code> by hand without updating the lockfile. Run <code>npm install</code>, then commit both files.</p>
+        </details>
+        <details>
+          <summary><code>npm error EACCES</code> or permission errors during install</summary>
+            <p>You may have installed Node.js with <code>sudo</code>, or into a system folder. Reinstall Node.js with <code>nvm</code>, as in M01, so npm writes to your own folders. Do not use <code>sudo npm</code>.</p>
+        </details>
+        <details>
+          <summary>The VS Code debugger never stops at the breakpoint</summary>
+            <p>Start the server from the <strong>JavaScript Debug Terminal</strong> (not a normal terminal), check the red dot is solid and not grey, and call the endpoint again. If your VS Code labels things differently, search the command palette for "JavaScript Debug Terminal".</p>
+        </details>
+        <details>
+          <summary>The memory numbers are very different from the page</summary>
+            <p>The numbers depend on your machine and operating system. What matters is the gap: the streaming version should use a small fraction of what <code>read-all.js</code> uses. If both are about the same, check you ran <code>log-report.js</code> and not <code>read-all.js</code>.</p>
+        </details>
+      </section>
+
+      <section id="done">
+        <h2>You're done when</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="d21"><label for="d21"><code>node src/log-report/generate-log.js</code> made <code>data/access.log</code>, and <code>git status</code> never shows it.</label></li>
+          <li><input type="checkbox" id="d22"><label for="d22"><code>npm run report</code> writes a valid <code>data/report.json</code> with 2000000 lines, and you have your own streaming vs <code>readFile</code> memory numbers.</label></li>
+          <li><input type="checkbox" id="d23"><label for="d23">The bare server answers <code>GET /health</code>, <code>GET /notes</code> and <code>POST /notes</code>, and stops cleanly on <code>Ctrl+C</code>.</label></li>
+          <li><input type="checkbox" id="d24"><label for="d24">Your <code>README.md</code> has your own list under <code>What Express would remove</code>.</label></li>
+          <li><input type="checkbox" id="d25"><label for="d25"><code>npm ci</code> and <code>npm audit</code> finish cleanly, and <code>package.json</code> has <code>engines</code>.</label></li>
+          <li><input type="checkbox" id="d26"><label for="d26">Both programs are merged to <code>main</code> by a pull request, and <code>main</code> is up to date on your machine.</label></li>
+        </ul>
+        <p>Keep the repo as it is. M04 moves you to TypeScript, and M05 builds this kind of API again with Express.</p>
+      </section>
+
+      <nav class="pager" aria-label="Module navigation">
+        <a href="../m02-modern-javascript-async-await/index.html">&larr; M02, Modern JavaScript &amp; Async/Await</a>
+        <a href="../../index.html">All modules</a>
+        <span>Next: M04, TypeScript Basics &amp; TypeScript on Node.js (coming soon).</span>
+      </nav>
+    </main>
+  </div>
+</body>
+</html>
