@@ -83,7 +83,7 @@ three files.
 
 | Stage | Title | Theme | Leaves behind |
 | --- | --- | --- | --- |
-| [M01](modules/m01-dev-environment-git-github/brief.md) | Dev Environment, Git & GitHub | Toolchain, the everyday Git workflow, a merged PR with a resolved conflict | Nothing |
+| [M01](modules/m01-dev-environment-git-github/brief.md) | Dev Environment, Git & GitHub | Toolchain, five core Git commands, the `node-js-training` project pushed to GitHub | Nothing |
 | [M02](modules/m02-modern-javascript-async-await/brief.md) | Modern JavaScript & Async/Await | Language essentials, the event loop, reliable async code | The Async toolkit (ported to TypeScript in M04) |
 | [M03](modules/m03-nodejs-runtime-npm/brief.md) | Node.js Runtime & npm | Core modules, npm, a bare `node:http` server | Nothing |
 | [M04](modules/m04-typescript-on-node/brief.md) | TypeScript Basics & TypeScript on Node.js | Strict TypeScript, the Task domain types | The ported toolkit and Task domain types |

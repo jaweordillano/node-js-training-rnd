@@ -62,3 +62,36 @@ a trainee-builds model and wrong here.
 - `brief.md` and `tasks.md` still mention Bruno; the page doesn't.
 - Possible pattern worth adding to `knowledge/patterns/`: run the lesson's commands in a scratch repo
   with a local bare remote before publishing a Git lesson.
+
+## Update: simplified M01 (about 90 min)
+
+The user found the page over-engineered. Git is minimised to `init`, `add`, `commit`, `remote`,
+`push` and `status`; branches, PRs, conflicts, `revert`/`reset` and Conventional Commits were cut.
+Students now build one `node-js-training` project (plain JS, `"type": "module"`, `src/`) that every
+later module extends.
+
+- `brief.md`, `tasks.md` and `write-up-template.md` are untouched and now disagree with the page
+  (merged PR, resolved conflict, `revert` vs `reset`). Authoring notes only; the page decides.
+- Linux: ran `npm init -y`, `npm pkg set`, `npm start` and the commit flow in a scratch repo, and
+  fixed the sample output to match. Not run: `git push` to GitHub, Windows, macOS, nvm, `gh`.
+- `google-doc.md` and the Google Doc itself are NOT updated and are now stale.
+- Defaults assumed: `gh` is the only sign-in method; `.nvmrc` and `.env.example` kept.
+
+### Validation of the simplified page
+
+- Both M01 files and the root page: one `<h1>`, no scripts, no duplicate ids, every in-page anchor,
+  relative link and `for=` label resolves. (The tag-balance check flags self-closed SVG `rect`/`path`;
+  false positive.)
+- Twin sync: the same 7 sections in the same order in `index.html` and `index.md`.
+- Time plan 30 + 15 + 40 = 85 min, shown as "about 90 minutes"; matches the 1.5 h on the home page.
+- Graph query showed no new cross-community links; `modules/README.md` and root `README.md` were
+  already updated for the new hours and deliverable.
+
+### Backlog
+
+- Google Doc and `google-doc.md` are stale. Update the Doc in place (same link) after review.
+- `brief.md` Definition of Done, `tasks.md` and `write-up-template.md` still describe the PR/conflict
+  version. Left alone on request; the write-up template was not edited for the same reason.
+- `docs/prd/` and `docs/arch-docs/` may still describe the old M01 deliverable. Not checked.
+- Not run: `git push` to GitHub, Windows, macOS, nvm, `gh`. Not viewed in a browser.
+- Pattern: use `npm pkg set` instead of hand-editing `package.json`; it behaves the same on every OS.

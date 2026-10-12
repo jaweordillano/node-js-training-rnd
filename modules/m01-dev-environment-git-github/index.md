@@ -1,61 +1,50 @@
 # M01 — Dev Environment, Git & GitHub
 
-**Module M01 · Week 1 · Day 1 · about 4 hours**
+**Module M01 · Week 1 · Day 1 · about 90 minutes**
 
-Set up your tools, learn the everyday Git workflow, and take a change through a GitHub pull request,
-including a real merge conflict.
+Install your tools, learn the five Git commands you need, and push your `node-js-training` project
+to GitHub.
 
 ## Overview & time plan
 
 **Builds on:** nothing. This is the first module.
 
-By the end you will have a public GitHub repo with a `hello-node` script, merged through a pull
-request that has at least three Conventional Commits and a merge conflict that you resolved
-yourself.
+This course is about Node.js, and Git is only the tool that saves your work. You learn the few Git
+commands you will use every day, and nothing more.
 
-1. Set up your tools: 45 min
-2. Git, hands-on: 60 min
-3. Your repo & project files: 20 min
-4. Branch, commit & PR: 45 min
-5. Merge conflict: 40 min
-6. Review, merge & wrap up: 30 min
+By the end you will have a public GitHub repo called `node-js-training` with a small Node.js project
+in it. **You will keep building in this one project for the whole course.** Every later module adds
+to it.
 
-> **How to read this page.** Type the commands yourself. A block labelled *You should see* shows
-> what to expect. Your output may differ in small ways, such as commit hashes and version numbers.
-> If it differs in a bigger way, stop and check [Troubleshooting](#troubleshooting).
+1. Set up your tools: 30 min
+2. Git crash course: 15 min
+3. Create your project: 40 min
 
-> **Working alone.** Nobody is assigned to review your work, so this module is built to be done on
-> your own. Where a partner would normally help, the page gives you a way to do the same thing
-> solo. If you do have someone to ask, use them.
+Type the commands yourself. A block labelled *You should see* shows what to expect. Your hashes and
+version numbers will differ. If anything else differs, check [Troubleshooting](#troubleshooting).
 
-## 1. Set up your tools (45 min)
+## 1. Set up your tools (30 min)
 
-You need an editor, Git, a way to install Node.js, and a GitHub account. You also need to be
-comfortable in a terminal.
+You need an editor, Git, Node.js and a GitHub account.
 
 ### 1.1 Install VS Code
 
-Download VS Code from [code.visualstudio.com](https://code.visualstudio.com/) and install it. It is
-the editor used throughout the course, and it has a built-in terminal (*Terminal → New Terminal*).
+Download VS Code from [code.visualstudio.com](https://code.visualstudio.com/) and install it. It has
+a built-in terminal (*Terminal → New Terminal*), and you will type every command in this course
+there.
 
 ### 1.2 Install Git
 
 **Windows.** Download **Git for Windows** from
 [git-scm.com/download/win](https://git-scm.com/download/win) and run the installer. The defaults
-are fine. It also installs **Git Bash**, a terminal that behaves like the macOS and Linux ones. The
-commands on this page work in Git Bash. In VS Code, open the terminal and choose *Git Bash* from the
-dropdown next to the `+` button.
+are fine. It also installs **Git Bash**, a terminal that behaves like the macOS and Linux ones.
+Every command in this course works in Git Bash. In VS Code, open the terminal and choose *Git Bash*
+from the dropdown next to the `+` button.
 
-**macOS.** Open Terminal and run `git --version`. If Git is missing, macOS offers to install the
-Xcode command-line tools. Accept, or run:
+**macOS.** Open Terminal and run `git --version`. If Git is missing, macOS offers to install it.
+Accept the offer. Or use [Homebrew](https://brew.sh/): `brew install git`.
 
-```bash
-xcode-select --install
-```
-
-Or install it with [Homebrew](https://brew.sh/): `brew install git`.
-
-**Linux.** Install Git with your package manager. For Debian and Ubuntu:
+**Linux.** For Debian and Ubuntu:
 
 ```bash
 sudo apt update
@@ -64,8 +53,8 @@ sudo apt install git
 
 On Fedora use `sudo dnf install git`.
 
-Now tell Git who you are and make `main` the default branch name. Use the email address on your
-GitHub account.
+Tell Git who you are, and make `main` the default branch name. Use the email address on your GitHub
+account.
 
 ```bash
 git config --global user.name "Your Name"
@@ -73,19 +62,19 @@ git config --global user.email "you@example.com"
 git config --global init.defaultBranch main
 ```
 
-**You should see.** Running `git --version` prints a version number such as:
+*You should see:*
 
-```
+```text
+$ git --version
 git version 2.53.0
 ```
 
 Any recent 2.x version is fine.
 
-### 1.3 Install Node.js with a version manager
+### 1.3 Install Node.js
 
-A version manager installs Node.js for you and lets each project use its own version. This course
-uses **Node.js 24 LTS**. We pin that version in a file called `.nvmrc`, so anyone who clones your
-project knows which version it needs.
+This course uses **Node.js 24 LTS**. Install it through `nvm`, a tool that installs Node.js for you
+and lets you switch versions later.
 
 **Windows.** Install **nvm-windows** from its
 [releases page](https://github.com/coreybutler/nvm-windows) (the installer is `nvm-setup.exe`). Then
@@ -96,10 +85,7 @@ nvm install 24
 nvm use 24
 ```
 
-nvm-windows does not read `.nvmrc` for you, so you run `nvm use 24` yourself in each new terminal if
-the version changes. [Volta](https://volta.sh/) is an alternative if you prefer one.
-
-**macOS.** Install **nvm** using the install command in the
+**macOS and Linux.** Install **nvm** using the install command in the
 [nvm README](https://github.com/nvm-sh/nvm#installing-and-updating). Then open a *new* terminal and
 run:
 
@@ -108,61 +94,58 @@ nvm install 24
 nvm use 24
 ```
 
-If you prefer, `brew install fnm` is an alternative with similar commands.
+*You should see:*
 
-**Linux.** Install **nvm** using the install command in the
-[nvm README](https://github.com/nvm-sh/nvm#installing-and-updating). Then open a *new* terminal and
-run:
-
-```bash
-nvm install 24
-nvm use 24
-```
-
-**You should see.**
-
-```
+```text
 $ node --version
 v24.x.x
 $ npm --version
 11.x.x
 ```
 
-The exact numbers will differ. The node version should start with `v24`.
+The exact numbers will differ. The Node version should start with `v24`.
 
-### 1.4 Create a GitHub account and sign in from the terminal
+### 1.4 GitHub account and sign-in
 
 Create a free account at [github.com/signup](https://github.com/signup) if you don't have one. Then
-install the **GitHub CLI** (`gh`). It handles signing in and gives you commands for pull requests.
+install the **GitHub CLI** (`gh`). Its only job here is to sign you in, so that `git push` works
+without asking for a password.
 
-- **Windows:** `winget install --id GitHub.cli` (open a new terminal afterwards so the command is
-  found).
-- **macOS:** `brew install gh`
-- **Linux:** follow the instructions for your distribution in the
-  [GitHub CLI install guide](https://github.com/cli/cli/blob/trunk/docs/install_linux.md).
+**Windows.**
 
-Then sign in. Choose *GitHub.com*, then *HTTPS*, say yes to authenticating Git with your GitHub
-credentials, and sign in through the browser.
+```bash
+winget install --id GitHub.cli
+```
+
+Open a new terminal afterwards so the command is found.
+
+**macOS.**
+
+```bash
+brew install gh
+```
+
+**Linux.** Follow the steps for your distribution in the
+[GitHub CLI install guide](https://github.com/cli/cli/blob/trunk/docs/install_linux.md).
+
+Sign in. Choose *GitHub.com*, then *HTTPS*, say yes to authenticating Git with your GitHub
+credentials, and finish in the browser.
 
 ```bash
 gh auth login
 ```
 
-**You should see.**
+*You should see:*
 
-```
+```text
 $ gh auth status
 github.com
   ✓ Logged in to github.com account your-username
 ```
 
-> **Other ways to sign in.** You can also use a credential manager or SSH keys. The GitHub CLI is the
-> quickest for a first day, so this page uses it. The steps for SSH are in
-> [GitHub's SSH guide](https://docs.github.com/en/authentication/connecting-to-github-with-ssh).
+### 1.5 Four terminal commands
 
-### 1.5 Terminal basics
-
-You need six commands to move around. Try each one.
+That is all the terminal you need to start. Try each one.
 
 | Command | What it does |
 | --- | --- |
@@ -170,626 +153,317 @@ You need six commands to move around. Try each one.
 | `ls` | List the files in this folder. |
 | `cd folder-name` | Move into a folder. `cd ..` moves up one level. |
 | `mkdir folder-name` | Create a folder. |
-| `cat file-name` | Print a file's contents. |
-| `code .` | Open the current folder in VS Code. |
-
-If `code .` isn't found, open the folder from VS Code with *File → Open Folder* instead.
 
 **Checkpoint 1**
 
 - [ ] `git --version` prints a version.
 - [ ] `node --version` starts with `v24`.
 - [ ] `gh auth status` says you're logged in.
-- [ ] You can open a terminal in VS Code.
 
-## 2. Git, hands-on (60 min)
+## 2. Git crash course (15 min)
 
-Git records snapshots of your project. Most confusion comes from not knowing *where* a change is, so
-start with the three places.
+Git saves snapshots of your project, called **commits**, and GitHub keeps a copy online. Your work
+moves through four places:
 
-```
-Working tree  --git add-->  Staging area  --git commit-->  Commit history
-```
-
-You edit files in the working tree, choose what goes into the next snapshot with `git add` (the
-staging area), and record it with `git commit`.
-
-### 2.1 A practice repo
-
-Practise in a throwaway repo so mistakes cost nothing. Create it somewhere outside your real
-project.
-
-1. Make a folder and turn it into a Git repo.
-
-   ```bash
-   mkdir git-practice
-   cd git-practice
-   git init
-   ```
-
-   **You should see.** `Initialized empty Git repository in .../git-practice/.git/`
-
-2. Create a file called `notes.txt` in VS Code containing the single line `line one`. Then check
-   where Git thinks it is.
-
-   ```bash
-   git status
-   ```
-
-   **You should see.**
-
-   ```
-   On branch main
-   Untracked files:
-     (use "git add <file>..." to include in what will be committed)
-           notes.txt
-
-   nothing added to commit but untracked files present (use "git add" to track)
-   ```
-
-   The file is in the working tree, and Git is not tracking it yet.
-
-3. Stage the file, check again, then commit it.
-
-   ```bash
-   git add notes.txt
-   git status
-   git commit -m "docs: add notes"
-   ```
-
-   After `git add`, `git status` lists `notes.txt` under *Changes to be committed*. That means it is
-   in the staging area. After the commit, it is in the history.
-
-4. See your history.
-
-   ```bash
-   git log --oneline
-   ```
-
-   **You should see.** `586d019 docs: add notes`. Your hash, the seven characters at the start, will
-   be different.
-
-### 2.2 Looking at and undoing changes
-
-1. Add a second line, `line two`, to `notes.txt` and save. See exactly what changed.
-
-   ```bash
-   git diff
-   ```
-
-   **You should see.**
-
-   ```
-   diff --git a/notes.txt b/notes.txt
-   --- a/notes.txt
-   +++ b/notes.txt
-   @@ -1 +1,2 @@
-    line one
-   +line two
-   ```
-
-   Lines starting with `+` were added and lines starting with `-` were removed.
-
-2. Throw that change away with `git restore`.
-
-   ```bash
-   git restore notes.txt
-   cat notes.txt
-   ```
-
-   The file is back to just `line one`. If you had staged it first, `git restore --staged notes.txt`
-   would unstage it without losing your edit.
-
-   > **Restore can't be undone.** An uncommitted change that you restore is gone. Commit or stash
-   > anything you want to keep.
-
-3. Set work aside with `git stash`. Add a line `work in progress`, then:
-
-   ```bash
-   git stash
-   cat notes.txt
-   git stash pop
-   cat notes.txt
-   ```
-
-   The stash hides your uncommitted edit so you have a clean tree, and `git stash pop` brings it
-   back. Use it when you need to switch tasks before you are ready to commit. Run
-   `git restore notes.txt` to drop the line again.
-
-### 2.3 Undoing a commit: `revert` vs `reset`
-
-Both undo a commit, in very different ways.
-
-| | `git revert` | `git reset` |
-| --- | --- | --- |
-| What it does | Adds a *new* commit that does the opposite of an earlier one. | Moves the branch pointer back, so later commits drop out of the history. |
-| History | Kept. The bad commit and its undo both stay visible. | Rewritten. The commits you reset past disappear from the branch. |
-| Safe on shared branches? | Yes. Other people can pull it normally. | No. Others who already have those commits get a diverged history. |
-| Use it when | The commit is already pushed or shared. | The commit is only on your machine and you want it gone. |
-
-Try both. First, `revert`:
-
-```bash
-echo "line two" >> notes.txt
-git commit -am "docs: add line two"
-echo "oops" >> notes.txt
-git commit -am "docs: add oops"
-git revert --no-edit HEAD
-git log --oneline
-cat notes.txt
+```text
+Your folder --git add--> Staging area --git commit--> Local history --git push--> GitHub
 ```
 
-**You should see.**
+You edit files in your folder, pick what goes into the next snapshot with `git add`, save the
+snapshot with `git commit`, and upload it with `git push`.
 
-```
-5816cf0 Revert "docs: add oops"
-c80fa8f docs: add oops
-0b2e519 docs: add line two
-586d019 docs: add notes
-```
+| Command | What it does |
+| --- | --- |
+| `git init` | Turn the current folder into a Git repo. Run it once per project. |
+| `git add .` | Stage every change in the folder for the next commit. |
+| `git commit -m "message"` | Save a snapshot of what you staged, with a short message. |
+| `git remote add origin URL` | Tell Git where your GitHub repo is. `origin` is just the usual name for it. Run it once per project. |
+| `git push` | Upload your commits to GitHub. |
+| `git status` | Show what is changed, staged or not saved yet. Run it whenever you are unsure. |
 
-and `notes.txt` has `line one` and `line two` only. The bad commit is still in the log, and the
-revert is a new commit on top.
+From now on, finish every piece of work the same way: `git add .`, `git commit -m "..."`,
+`git push`. You will use it in the next stage.
 
-Now `reset`. Make another mistake and remove it from the history entirely:
+> **What we skip.** Git can do much more, such as branches, pull requests and undoing commits. You
+> don't need any of it for this course, so we leave it out. Learn it later on a real team.
 
-```bash
-echo "another oops" >> notes.txt
-git commit -am "docs: add another oops"
-git reset --hard HEAD~1
-git log --oneline
-```
+## 3. Create your project (40 min)
 
-**You should see.** The "another oops" commit is gone from the log, and `notes.txt` no longer has
-that line.
+You will build `node-js-training`, the project you keep using in every module. It starts with plain
+JavaScript. Later modules add TypeScript, Express and the other libraries, all in this same folder.
 
-> **Careful with `--hard`.** `git reset --hard` also throws away uncommitted changes. Never use it
-> on commits you have already pushed and shared. If you reset too far, `git reflog` lists where your
-> branch has been, and `git reset --hard <hash>` takes you back.
+### 3.1 The files you will end up with
 
-### 2.4 Branching and merging
-
-A branch is a separate line of work. You make changes on a branch so `main` stays in a good state,
-then bring them back with a merge.
-
-```bash
-git switch -c try-branch
-echo "from the branch" >> notes.txt
-git commit -am "docs: add a line on a branch"
-git switch main
-git merge try-branch
-git log --oneline
+```text
+node-js-training/
+├── .gitignore        files Git must never save
+├── .env.example      a template for secret settings
+├── .nvmrc            the Node.js version for this project
+├── package.json      the project's description and scripts
+├── README.md         what the project is
+└── src/
+    └── hello.js      your first Node.js program
 ```
 
-Because `main` had no new commits of its own, Git simply moves it forward. This is called a
-*fast-forward* merge. When both branches have new commits, Git creates a *merge commit* that joins
-them, and when both edited the same lines, it asks you to settle it. That is a conflict, and you
-cause one in stage 5.
+Your code lives in `src/`. Later modules put their code there too.
 
-### 2.5 Merge vs rebase (concept only)
+### 3.2 Build it
 
-Both combine work from two branches. **Merge** keeps the history as it really happened and joins
-the lines with a merge commit. **Rebase** replays your commits on top of the other branch, which
-gives a straight line but rewrites your commits. You only use merge in this module. Rebase comes
-later, once you are comfortable with history. Like `reset`, don't rebase commits that others already
-have.
-
-**Checkpoint 2**
-
-- [ ] You can say which of the three places a change is in by reading `git status`.
-- [ ] Your practice log shows a *Revert* commit, and the reset commit is gone.
-- [ ] You merged `try-branch` into `main`.
-
-## 3. Your repo & project files (20 min)
-
-Now the real repo. It is the one you'll use for the whole course, so pick a name you'll be happy
-with. This page uses `node-training`.
-
-1. Make the folder, enter it, and initialise Git. Go up out of `git-practice` first.
+1. Make the folder, turn it into a Git repo, and open it in VS Code. Pick a place outside any other
+   Git repo.
 
    ```bash
-   cd ..
-   mkdir node-training
-   cd node-training
+   mkdir node-js-training
+   cd node-js-training
    git init
    code .
    ```
 
-2. In VS Code, create these four files. Creating them in the editor works the same on every
-   operating system.
+   If `code .` isn't found, use *File → Open Folder* in VS Code. Open its terminal from here on,
+   which starts in this folder.
 
-   `.nvmrc` pins the Node version:
+   *You should see:*
 
+   ```text
+   Initialized empty Git repository in .../node-js-training/.git/
    ```
+
+2. Create the Node.js project file, then switch it to modern JavaScript modules and add a `start`
+   script. M02 explains what `"type": "module"` means.
+
+   ```bash
+   npm init -y
+   npm pkg set type=module scripts.start="node src/hello.js"
+   ```
+
+   The `package.json` file now exists. `npm` came with Node.js.
+
+3. In VS Code, create the folder `src` and, inside it, the file `hello.js` with this line:
+
+   ```js
+   console.log("Hello, Node!");
+   ```
+
+   Run it two ways.
+
+   ```bash
+   node src/hello.js
+   npm start
+   ```
+
+   *You should see:*
+
+   ```text
+   Hello, Node!
+   ```
+
+   `npm start` prints a couple of extra lines first. That is normal.
+
+4. Create these three files in the project root (not inside `src`).
+
+   `.gitignore` lists what Git must never save. `node_modules` is where installed libraries go and
+   is large. `.env` will hold secrets. `*.db` are local databases. `dist` is built output.
+   `coverage` is test reports.
+
+   ```text
+   node_modules
+   .env
+   *.db
+   dist
+   coverage
+   ```
+
+   `.env.example` shows which settings the project needs, with no real values. It is empty for now,
+   so write a comment:
+
+   ```text
+   # Copy this file to .env and fill in real values. Never commit .env.
+   ```
+
+   `.nvmrc` pins the Node.js version, so anyone who opens the project knows which one to use:
+
+   ```text
    24
    ```
 
-   `.gitignore` lists what Git should never track:
+5. Create `README.md`:
 
-   ```
-   node_modules/
-   .env
-   .env.test
-   *.db
-   src/generated/
-   dist/
-   coverage/
+   ```markdown
+   # node-js-training
+
+   My project for the Node.js training course.
    ```
 
-   `.env.example` is a template for settings, committed in place of the real `.env`:
+6. Check what Git sees.
 
-   ```
-   # Copy this file to .env and fill in real values.
-   # There is nothing to configure yet.
-   # PORT=3000
+   ```bash
+   git status
    ```
 
-   `README.md`:
+   *You should see:*
 
+   ```text
+   On branch main
+
+   No commits yet
+
+   Untracked files:
+           .env.example
+           .gitignore
+           .nvmrc
+           README.md
+           package.json
+           src/
    ```
-   # node-training
 
-   Status: draft
-   ```
+   Your list may differ slightly. These are not saved yet. If `node_modules` were here, it would be
+   listed too, but it is already ignored.
 
-3. Commit them as your first commit.
+7. Stage everything and make your first commit.
 
    ```bash
    git add .
-   git commit -m "chore: add project scaffolding"
+   git commit -m "Add hello world project"
    ```
 
-4. Create the public repo on GitHub from here and push in one go.
+   *You should see:*
+
+   ```text
+   [main (root-commit) 3f2a1b9] Add hello world project
+    6 files changed, 25 insertions(+)
+   ```
+
+   Your hash and counts will differ.
+
+8. Create the empty repo on GitHub. Go to [github.com/new](https://github.com/new), then:
+
+   - Name it `node-js-training`.
+   - Choose **Public**.
+   - Leave *Add a README*, *.gitignore* and *license* all **unchecked**. You already have your own
+     files.
+   - Click *Create repository*.
+
+   The next page shows the repo's URL, which looks like
+   `https://github.com/your-username/node-js-training.git`. Copy it.
+
+   Public means anyone can read it. That is why secrets never go in it.
+
+9. Connect your folder to that repo and push. Paste your own URL.
 
    ```bash
-   gh repo create node-training --public --source=. --remote=origin --push
+   git remote add origin https://github.com/your-username/node-js-training.git
+   git push -u origin main
    ```
 
-   **You should see.** Messages ending with the repo being created, and your files at
-   `https://github.com/<your-username>/node-training` when you open it in the browser.
+   `-u` remembers `origin main`, so from now on a plain `git push` is enough.
 
-### Why each line of `.gitignore`
+   *You should see:*
 
-- `node_modules/`: installed packages. They are rebuilt from `package.json` and are large.
-- `.env` and `.env.test`: real settings and secrets. Never commit them.
-- `*.db`: local database files.
-- `src/generated/`: code the Prisma tool generates later in the course. It is rebuilt, not written
-  by hand.
-- `dist/` and `coverage/`: build output and test reports. Both are rebuilt.
-
-> **Never commit secrets.** On a public repo anyone can read your history, and deleting a secret
-> from a later commit doesn't remove it from the earlier ones. That is why you commit `.env.example`
-> with placeholder values and keep the real `.env` out of Git. If a secret ever does get committed,
-> treat it as leaked: revoke it and create a new one.
-
-**Checkpoint 3**
-
-- [ ] Your repo is on GitHub and shows the four files.
-- [ ] `git status` says *nothing to commit, working tree clean*.
-
-## 4. Branch, commit & pull request (45 min)
-
-### GitHub Flow
-
-This is the everyday way teams work with GitHub. The same five steps apply to every change you will
-make in this course.
-
-1. Branch from `main`.
-2. Commit your work on the branch.
-3. Open a pull request (a PR).
-4. Get it reviewed and respond to comments.
-5. Merge it, then delete the branch.
-
-### Conventional Commits
-
-Commit messages follow a pattern: a **type**, a colon, and a short description in the imperative
-mood. The pattern makes history easy to scan.
-
-| Type | Use it for | Example |
-| --- | --- | --- |
-| `feat` | A new feature | `feat: add hello-node script` |
-| `fix` | A bug fix | `fix: handle a missing name` |
-| `docs` | Documentation only | `docs: explain how to run it` |
-| `chore` | Maintenance and setup | `chore: add .gitignore` |
-
-### Make the change
-
-1. Create a feature branch. Never work directly on `main`.
-
-   ```bash
-   git switch -c feat/hello-node
+   ```text
+   Writing objects: 100% (7/7), done.
+   To https://github.com/your-username/node-js-training.git
+    * [new branch]      main -> main
+   branch 'main' set up to track 'origin/main'.
    ```
 
-2. Create `hello-node.js` in VS Code:
+10. Reload your repo's page on GitHub. Your files and the commit message are there. That is your
+    success mark for this module.
 
-   ```js
-   const name = process.argv[2] ?? "world";
-   console.log(`Hello, ${name}!`);
-   ```
+### 3.3 Practise the loop once
 
-   `process.argv` is the list of command-line arguments, and `??` supplies a default when none is
-   given. Run it, then commit:
+Do the save-and-upload loop one more time on a real change. Edit `src/hello.js` so it prints your
+own name too:
 
-   ```bash
-   node hello-node.js
-   node hello-node.js Ana
-   git add hello-node.js
-   git commit -m "feat: add hello-node script"
-   ```
-
-   **You should see.**
-
-   ```
-   Hello, world!
-   Hello, Ana!
-   ```
-
-3. In `README.md`, change the status line to `Status: runs with node hello-node.js`, then commit.
-
-   ```bash
-   git commit -am "docs: say how to run the script"
-   ```
-
-4. Add a line at the end of `README.md`: `Run: node hello-node.js [name]`, then commit.
-
-   ```bash
-   git commit -am "docs: add usage line"
-   git log --oneline
-   ```
-
-   **You should see.** Three new commits on top of `chore: add project scaffolding`, all with a
-   Conventional Commits type.
-
-5. Push the branch and open a pull request.
-
-   ```bash
-   git push -u origin feat/hello-node
-   gh pr create --title "feat: add hello-node script" --body "Adds a hello-node script and a usage line in the README."
-   ```
-
-   You can also open your repo on GitHub and click *Compare & pull request*. Leave this PR open. You
-   merge it in stage 6.
-
-   **You should see.** A link to the new PR. On GitHub the *Commits* tab lists your three commits.
-
-**Checkpoint 4**
-
-- [ ] An open PR on GitHub with 3 commits.
-- [ ] `node hello-node.js Ana` prints `Hello, Ana!`.
-
-## 5. Merge conflict (40 min)
-
-A conflict happens when two branches change the same lines and Git can't pick for you. On a team it
-happens when two people work at once. Here you play both people, so the first conflict you meet is
-a safe one.
-
-### 5.1 Make a competing change
-
-While your PR is open, a second change lands on `main` that edits the same status line.
-
-1. Go back to `main` and branch off it.
-
-   ```bash
-   git switch main
-   git switch -c docs/readme-status
-   ```
-
-2. In `README.md`, change `Status: draft` to `Status: work in progress`, then commit and push.
-
-   ```bash
-   git commit -am "docs: mark status as in progress"
-   git push -u origin docs/readme-status
-   ```
-
-3. Open a PR for it and merge it. This is a normal, small PR, so *Create a merge commit* is fine.
-
-   ```bash
-   gh pr create --fill
-   gh pr merge --merge --delete-branch
-   ```
-
-   You can do the same on GitHub in the browser. Then update your local `main`:
-
-   ```bash
-   git switch main
-   git pull
-   ```
-
-### 5.2 Meet the conflict
-
-Your open PR changes the same line, so it is now out of date. Bring `main` into your feature branch
-to see it.
+```js
+console.log("Hello, Node! I am Your Name.");
+```
 
 ```bash
-git switch feat/hello-node
-git merge main
+node src/hello.js
+git status
+git add .
+git commit -m "Print my name"
+git push
 ```
 
-**You should see.**
+*You should see:* `git status` lists `src/hello.js` as *modified*. After `git push`, reload GitHub
+and see the new line in `src/hello.js`, and two commits in the history.
 
-```
-Auto-merging README.md
-CONFLICT (content): Merge conflict in README.md
-Automatic merge failed; fix conflicts and then commit the result.
-```
+**Checkpoint 2**
 
-and `git status` lists `README.md` under *Unmerged paths*.
-
-Open `README.md`. Git has marked the clash:
-
-```
-# node-training
-
-<<<<<<< HEAD
-Status: runs with node hello-node.js
-Run: node hello-node.js [name]
-=======
-Status: work in progress
->>>>>>> main
-```
-
-The part between `<<<<<<< HEAD` and `=======` is your branch, and the part below it up to
-`>>>>>>> main` is the other side. Git won't guess which to keep, and it might need both.
-
-### 5.3 Resolve it
-
-1. Edit the file to the text you want. Here, keep the status from `main` and your usage line, and
-   delete all three marker lines (`<<<<<<<`, `=======`, `>>>>>>>`):
-
-   ```
-   # node-training
-
-   Status: work in progress. Runs with node hello-node.js
-   Run: node hello-node.js [name]
-   ```
-
-2. Tell Git it's resolved by staging the file, then finish the merge.
-
-   ```bash
-   git add README.md
-   git commit --no-edit
-   git push
-   ```
-
-   **You should see.** A merge commit in `git log --oneline --graph` that joins the two lines of
-   work. On GitHub, your PR now says *This branch has no conflicts with the base branch*.
-
-> **Check before you commit.** Search the file for `<<<<<<<` before you commit. Leftover markers are
-> the most common conflict mistake. If you get lost, `git merge --abort` returns you to before the
-> merge.
-
-**Checkpoint 5**
-
-- [ ] You saw the `CONFLICT` message and the markers.
-- [ ] The final `README.md` has no markers.
-- [ ] A merge commit is in your branch history, and the PR is mergeable.
-
-## 6. Review, merge & wrap up (30 min)
-
-### 6.1 Review your PR
-
-A review is a second look before code reaches `main`. If you have someone to ask, send them the PR
-link and ask them to review it. If you are working alone, review it yourself, as if it were someone
-else's.
-
-1. Open the PR on GitHub and go to the *Files changed* tab.
-2. Hover a line and click the `+` to leave a comment. Leave at least one, for example a question or
-   a suggestion about wording.
-3. Click *Review changes*, add a summary, and choose *Comment*. GitHub doesn't let you approve your
-   own PR, so a comment is the right choice.
-
-### 6.2 Merge it
-
-Your PR needs 3 or more Conventional Commits, and the merge style matters here.
-
-> **Choose "Create a merge commit".** The *Squash and merge* option folds all your commits into one,
-> which erases the history this module asks for. Choose *Create a merge commit* instead.
-
-```bash
-gh pr merge --merge --delete-branch
-```
-
-You can also click the green button on GitHub. Then bring your local copy up to date and tidy up.
-
-```bash
-git switch main
-git pull
-git log --oneline --graph
-```
-
-**You should see.** Your three Conventional Commits, the conflict-resolving merge commit and the
-merge of the PR in the history on `main`.
-
-### 6.3 Wrap up
-
-- Check that `.gitignore` and `.env.example` show on GitHub, and that no `.env` file is committed.
-- Say the difference between `git revert` and `git reset` out loud, without looking, in your own
-  words.
-- Keep this repo. You'll keep working in it for the rest of the course.
+- [ ] `npm start` prints your hello message.
+- [ ] `git log --oneline` shows two commits.
+- [ ] GitHub shows all your files, and no `.env` or `node_modules`.
 
 ## Check your understanding
 
 Answer each one in your head, then compare.
 
-**Where is a change after you edit a file but before `git add`?** In the working tree only.
-`git status` lists it under *Changes not staged for commit*. It is not in the staging area or the
-history yet.
+**What are the three commands you run to save and upload a change?**
+`git add .`, `git commit -m "message"`, then `git push`.
 
-**Why work on a feature branch instead of `main`?** So `main` always holds work that has been
-reviewed and works. A branch lets you experiment, and the PR gives others a chance to review before
-anything lands on `main`.
+**What is the difference between `git commit` and `git push`?**
+`commit` saves a snapshot on your own machine only. `push` uploads your commits to GitHub.
 
-**Why is `.env.example` committed when `.env` is not?** A new person needs to know which settings
-the project expects, and the example shows that without any real values. The real `.env` holds
-secrets, and anything committed to a public repo is public for good.
+**What does `git status` tell you?**
+Which files are changed but not staged, which are staged for the next commit, and which are new and
+untracked. Use it whenever you are unsure what state you are in.
 
-**What do you do when Git reports a conflict?** Open the marked file, decide what the final text
-should be, delete the three marker lines, run `git add` on the file, and commit.
-`git merge --abort` backs out if you want to start again.
-
-**Explain `git revert` vs `git reset`.** `revert` adds a new commit that undoes an earlier one, so
-history is kept and it is safe on shared branches. `reset` moves the branch back and drops commits
-from history, so use it only on commits that exist just on your machine.
-
-**Why choose a merge commit over squash for this module's PR?** Squashing folds the commits into
-one, so the PR wouldn't show 3 or more Conventional Commits, and the conflict-resolving merge would
-be lost from the history.
+**Why is `.env.example` committed but `.env` is in `.gitignore`?**
+The example shows what settings the project expects, with no real values. The real `.env` holds
+secrets, and anything pushed to a public repo is public for good.
 
 ## Troubleshooting
 
-**`git` or `node` says "command not found".** Close the terminal and open a new one. A terminal only
-learns about newly installed tools when it starts. If it still fails, rerun the installer, and on
-Windows make sure you're using Git Bash.
+**`git`, `node` or `gh` says "command not found"**
+Close the terminal and open a new one. A terminal only learns about newly installed tools when it
+starts. If it still fails, rerun the installer. On Windows, make sure you're using Git Bash.
 
-**`node --version` isn't v24.** Run `nvm use 24`. If it says 24 isn't installed, run
-`nvm install 24` first. On Windows, run these in a terminal opened as Administrator.
+**`node --version` isn't v24**
+Run `nvm use 24`. If it says 24 isn't installed, run `nvm install 24` first. On Windows, run these
+in a terminal opened as Administrator.
 
-**"Please tell me who you are" or "Author identity unknown".** Set your name and email with the
-`git config --global` commands from stage 1.2.
+**"Please tell me who you are" or "Author identity unknown"**
+Set your name and email with the `git config --global` commands from step 1.2, then commit again.
 
-**The commit message editor opened and I can't leave it.** It is probably Vim. Press `Esc`, then
-type `:wq` and press Enter to save, or `:q!` to quit without saving. Using `-m "message"` avoids the
-editor.
+**The commit message editor opened and I can't leave it**
+You left out `-m "message"`. The editor is probably Vim. Press `Esc`, type `:q!` and press Enter to
+quit, then run the commit again with `-m`.
 
-**`git push` is rejected or asks for a password.** Rejected with "fetch first" or "non-fast-forward"
-means the remote has commits you don't. Run `git pull`, resolve any conflict, then push again. If it
-asks for a password or fails to authenticate, run `gh auth login` again and choose HTTPS.
+**`git push` asks for a password or says authentication failed**
+Run `gh auth login` again, choose HTTPS, and say yes to authenticating Git. Check that the remote
+URL is yours with `git remote -v`.
 
-**The branch is called `master`, not `main`.** Set `git config --global init.defaultBranch main`,
-then rename this repo's branch with `git branch -M main`.
+**`git push` says "remote contains work that you do not have"**
+You ticked *Add a README* or another option when creating the GitHub repo, so it isn't empty. The
+simplest fix is to delete the repo in its GitHub *Settings* (at the bottom of the page), create it
+again with every option unticked, and push again.
 
-**I committed on `main` by mistake.** If you haven't pushed yet, move the commits to a new branch
-and put `main` back:
+**`git remote add` says "remote origin already exists"**
+You added it already, possibly with a wrong URL. Fix the URL with
+`git remote set-url origin YOUR-URL`.
 
-```bash
-git switch -c feat/my-change
-git branch -f main origin/main
-```
+**The branch is called `master`, not `main`**
+Run `git branch -M main`, and set `git config --global init.defaultBranch main` so new repos use
+`main`.
 
-**A warning about "LF will be replaced by CRLF" on Windows.** It's harmless. Git is adjusting line
-endings between Windows and the repo. You can ignore it for this course.
+**A file I wanted to ignore is already on GitHub**
+Adding a file to `.gitignore` doesn't remove it once it was committed. Run
+`git rm --cached file-name` (add `-r` for a folder), commit, and push. If it held a secret, treat
+the secret as leaked and replace it.
 
-**I got lost in the middle of a conflict.** Run `git merge --abort` to return to the state before
-the merge, then start stage 5.2 again.
+**A warning about "LF will be replaced by CRLF" on Windows**
+It's harmless. Git is adjusting line endings between Windows and the repo. Ignore it.
 
 ## You're done when
 
-- [ ] You have a merged pull request on a **public** repo with 3 or more Conventional Commits.
-- [ ] The repo contains a `hello-node` script.
-- [ ] A merge conflict that you resolved is in the history.
-- [ ] `.gitignore` is in the repo and covers `node_modules`, `.env`, `*.db`, the generated Prisma
-  client, `dist` and `coverage`.
-- [ ] `.env.example` is in the repo, even though there is nothing to configure yet.
-- [ ] You can explain, in your own words, the difference between `git revert` and `git reset`.
+- [ ] Git, Node.js 24 and the GitHub CLI work from your terminal.
+- [ ] A **public** `node-js-training` repo on GitHub shows your files.
+- [ ] `npm start` prints your hello message.
+- [ ] The repo has at least two commits.
+- [ ] `.gitignore` and `.env.example` are in the repo, and no `.env` is.
+- [ ] You can say what `git add`, `git commit` and `git push` each do.
 
-Tick everything before you start the next module.
+Keep this repo. You build the rest of the course in it.
 
-## Further reading
-
-- [GitHub Docs: Get started](https://docs.github.com/en/get-started)
-- [Conventional Commits](https://www.conventionalcommits.org/)
-- [Pro Git](https://git-scm.com/book)
-
----
-
-[← All modules](../../index.html) · Next: M02, Modern JavaScript & Async/Await (coming soon)
+Next: M02, Modern JavaScript & Async/Await (coming soon).

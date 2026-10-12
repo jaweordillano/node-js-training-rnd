@@ -14,6 +14,13 @@ covers the objective, toolchain, the Git mental model, branching and conflicts, 
 secrets, GitHub, the lab, check-your-understanding questions and the definition of done. The lab
 itself (repo, `hello-node`, PR, conflict) is still to be done and written up below.
 
+**Simplified page (2026-10-12).** The page was cut from about 4 hours to about 90 minutes. Git is
+reduced to `init`, `add`, `commit`, `remote`, `push` and `status`. Students create one
+`node-js-training` project (plain JavaScript, `"type": "module"`, code in `src/`, with `.gitignore`,
+`.env.example`, `.nvmrc`, `package.json` and a README), push it to a public GitHub repo, and keep
+building in it for every later module. The sections now are: set up tools, Git crash course, create
+your project, check your understanding, troubleshooting and "you're done when".
+
 ## Why it's built this way (key decisions)
 
 - Why did you structure your branches and commits the way you did?
@@ -39,6 +46,21 @@ itself (repo, `hello-node`, PR, conflict) is still to be done and written up bel
 - Node is pinned to 24 LTS, per `README.md`, which says that choice is already made.
 - Bruno was removed from this page's toolchain list and lab step 1 at the trainer's request.
 
+**Decisions on the simplification (2026-10-12)**
+
+- The course is about Node.js, not Git, so M01 teaches only the commands needed to save and push
+  work. Branches, PRs, merge conflicts, `revert`/`reset`, `stash`, rebase and Conventional Commits
+  are cut, even though `brief.md` and `tasks.md` still ask for them. The page decides how it is
+  taught; the brief was not edited.
+- One `node-js-training` project for all modules, so students consume one repo, not one per stage.
+  Plain JS now, with `src/` and a `.gitignore` that already covers `dist`, `*.db` and `coverage`, so
+  TypeScript, Express and Prisma are additions, not rework.
+- `"type": "module"` is set from the start so M02's ESM teaching is not a migration.
+- `npm pkg set` edits `package.json` from the terminal, so it behaves the same on every OS.
+- GitHub CLI is the only sign-in method, to avoid a choice between three.
+- Students create the GitHub repo empty in the browser, then `git remote add origin` and
+  `git push -u origin main`, so `remote` is practised, not skipped.
+
 ## How to build it (teach it to the next trainee)
 
 Write a guide to taking a change through branch → PR → merge, including a real conflict, using your
@@ -59,6 +81,10 @@ Anything that didn't behave the way you expected the first time.
   Decide where generated pages live before writing them, since moving them means fixing every
   relative link.
 - Bruno is still named in `brief.md` and `tasks.md`, so the page and the brief currently disagree.
+- My sample `git status` and `git commit` output didn't match a real run ("No commits yet" line;
+  25 insertions, not 28). Run the commands and paste real output instead of writing it from memory.
+- Running the first plan's approval without answering its three questions meant defaults were used.
+  Answer them, or the defaults stand.
 
 ## Checkpoint evidence
 
@@ -70,4 +96,9 @@ Show the merged PR link, your `.gitignore`/`.env.example`, and your own explanat
 If you started this module over, what would you do differently?
 
 For the training page: confirm the folder layout and the toolchain list with the trainer before
-writing, and check links with a script after every move.
+writing, and check links with a script after every move. Start from the smallest page that reaches
+the success indicator (a repo on GitHub), instead of writing everything the brief lists and cutting
+later.
+
+Still open: Windows, macOS, nvm, `gh` and a real `git push` have not been run; the Google Doc is
+stale; `brief.md`, `tasks.md` and possibly `docs/prd/` still describe the old deliverable.

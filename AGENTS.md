@@ -52,8 +52,18 @@ Before writing a course page, read, in this order:
 4. `docs/prd/` and `docs/arch-docs/` for programme-level intent and constraints.
 
 The brief decides scope, stack and the deliverable; the course page decides how it is taught. If
-the two disagree, tell the user rather than silently diverging. Do not edit `brief.md` unless the
-user asks.
+the two disagree, tell the user rather than silently diverging. Do not edit `brief.md` or `tasks.md`
+unless the user asks.
+
+**`write-up-template.md` is the user's journal.** It is the exception: update it at the end of every
+`/validate` (and any change to a module page) under "What I built", "Why it's built this way",
+"What tripped me up" and "What I'd do differently". Record only what actually happened, and add to
+the existing text instead of replacing the user's own entries.
+
+**The course page is the source of truth for scope once the user has simplified it.** If the user
+cuts content the brief or tasks still ask for, follow the user, note the mismatch in the write-up and
+the retro, and leave the brief and tasks alone. Keep pages direct and minimal: the smallest page that
+reaches the stage's success indicator, without exhausting students.
 
 ## Teaching principles (student-facing course pages)
 
@@ -93,6 +103,9 @@ Students learn by following the page, so it must be complete enough to follow al
   one-off styles per file.
 - **Every module page has two twin files, `index.html` and `index.md`, with the same content and
   section order. Update both in the same change on every revision; never leave one stale.**
+- A module can also have a **Google Doc copy**, recorded in `modules/<stage>/google-doc.md` (link
+  and known differences). When the HTML and Markdown change, update the existing Doc in place so the
+  link stays the same, and never create a second one.
 - Layout: `index.html` (the course front door and table of contents) and `assets/style.css` (the
   one shared stylesheet) at the repo root; each module page is `modules/<stage>/index.html` (with
   its `index.md` twin), beside the brief. Link a module from the home page when its page exists;
