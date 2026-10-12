@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M02 — Modern JavaScript &amp; Async/Await</title>
+  <meta name="description" content="Learn the modern JavaScript you need, understand the event loop, and build the Async toolkit (sleep, retry, withTimeout, mapLimit) in your node-js-training project.">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <a class="back" href="../../index.html">&larr; All modules</a>
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#overview">Overview &amp; time plan</a></li>
+        <li><a href="#s1">1. Modern JavaScript you will use every day</a></li>
+        <li><a href="#s2">2. How async code runs</a></li>
+        <li><a href="#s3">3. Build the Async toolkit</a></li>
+        <li><a href="#s4">4. Fetch: sequential vs parallel</a></li>
+        <li><a href="#s5">5. Callbacks to promises</a></li>
+        <li><a href="#check">Check your understanding</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#done">You're done when</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Module M02 · Week 1 · Days 2-4 · about 2 hours</p>
+        <h1>Modern JavaScript &amp; Async/Await</h1>
+        <p class="lede">Learn the modern JavaScript you will use every day, understand how async code runs, and build an Async toolkit of four helpers that the rest of the course reuses.</p>
+      </header>
+
+      <section id="overview">
+        <h2>Overview &amp; time plan</h2>
+        <p><strong>Builds on:</strong> M01. You need the <code>node-js-training</code> repo from M01, with <code>"type": "module"</code> in <code>package.json</code>, and Node.js 24. Everything you write here goes into that same repo.</p>
+        <p>Almost every Node.js program waits for something: a network reply, a file, a timer. This module teaches the modern JavaScript you will read and write all the time, and then how to wait for things without bugs. You will end with a small <strong>Async toolkit</strong>: <code>sleep</code>, <code>withTimeout</code>, <code>retry</code> and <code>mapLimit</code>.</p>
+        <p><strong>You will reuse the toolkit.</strong> M03 builds on the same async patterns, M04 converts the toolkit to TypeScript, and M05 reuses the custom-error pattern in the API. So write it carefully, keep it in one file, and do not rename anything.</p>
+
+        <ol class="plan">
+          <li><a href="#s1">Modern JavaScript you will use every day</a> <span class="time">25 min</span></li>
+          <li><a href="#s2">How async code runs</a> <span class="time">20 min</span></li>
+          <li><a href="#s3">Build the Async toolkit</a> <span class="time">45 min</span></li>
+          <li><a href="#s4">Fetch: sequential vs parallel</a> <span class="time">15 min</span></li>
+          <li><a href="#s5">Callbacks to promises</a> <span class="time">10 min</span></li>
+          <li><a href="#check">Check your understanding</a> <span class="time">5 min</span></li>
+        </ol>
+
+        <p>This page moves quickly. Type each code block yourself (typing teaches more than pasting), run it, and compare with the <em>You should see</em> box. The commands are the same on Windows (Git Bash), macOS and Linux. Your timings and file paths will differ from the examples. If anything else differs, check <a href="#troubleshooting">Troubleshooting</a>.</p>
+      </section>
+
+      <section id="s1">
+        <h2><span class="num">1.</span>Modern JavaScript you will use every day <span class="time">25 min</span></h2>
+        <p>You will write one file, <code>src/labs/essentials.js</code>, a topic at a time. First create the folders, inside <code>node-js-training</code>:</p>
+        <pre><code>mkdir -p src/labs src/toolkit</code></pre>
+        <p>Add each code block below to the <strong>end</strong> of <code>src/labs/essentials.js</code>. The output is shown once, after the last block.</p>
+        <h3>1.1 Variables, arrow functions, closures, templates</h3>
+        <p>Use <code>const</code> by default, and <code>let</code> only when a value must change. Do not use <code>var</code>. An <strong>arrow function</strong> is a short function: <code>(a, b) =&gt; a + b</code>. A <strong>template literal</strong> uses backticks and <code>${}</code> to put values into text. A <strong>closure</strong> is a function that remembers the variables around it, even after the outer function has finished. <code>retry</code> and <code>mapLimit</code> rely on closures.</p>
+        <pre><code>// const / let, arrow functions, template literals
+const price = 20;
+const addTax = (amount, rate = 0.1) =&gt; amount * (1 + rate);
+console.log(`Total: ${addTax(price)}`);
+
+// Closures: a function remembers the variables around it
+function makeCounter() {
+  let count = 0;
+  return () =&gt; ++count;
+}
+const next = makeCounter();
+next();
+console.log("Counter:", next());</code></pre>
+        <h3>1.2 Destructuring, spread and rest</h3>
+        <p><strong>Destructuring</strong> pulls values out of objects and arrays into variables. <strong>Spread</strong> (<code>...</code>) copies items into a new object or array. <strong>Rest</strong> (<code>...nums</code>) collects extra arguments into an array.</p>
+        <pre><code>// Destructuring, spread and rest
+const user = { name: "Ana", address: { city: "Manila" }, tags: ["a", "b"] };
+const { name, tags: [firstTag] } = user;
+const copy = { ...user, name: "Ben" };
+const sum = (...nums) =&gt; nums.reduce((total, n) =&gt; total + n, 0);
+console.log(name, firstTag, copy.name, sum(1, 2, 3));</code></pre>
+        <h3>1.3 Safe access and defaults: <code>?.</code>, <code>??</code>, <code>??=</code></h3>
+        <p><code>?.</code> stops and gives <code>undefined</code> if something is missing, instead of throwing. <code>??</code> uses the right side only for <code>null</code> or <code>undefined</code>, while <code>||</code> also replaces <code>0</code> and the empty string. <code>??=</code> assigns only if the value is missing.</p>
+        <pre><code>// ?. ?? ??=
+console.log(user.profile?.age);
+console.log(0 || 10, 0 ?? 10);
+const settings = {};
+settings.retries ??= 3;
+console.log(settings);</code></pre>
+        <div class="callout warn">
+          <p class="callout-title">Use === and know what is falsy</p>
+          <p><code>==</code> converts types before comparing, so <code>"5" == 5</code> is <code>true</code> and <code>[] == false</code> is <code>true</code>. Always use <code>===</code>. The falsy values are <code>false</code>, <code>0</code>, <code>""</code>, <code>null</code>, <code>undefined</code> and <code>NaN</code>. Everything else is truthy, including <code>"0"</code>, <code>[]</code> and <code>{}</code>.</p>
+        </div>
+        <h3>1.4 Array methods</h3>
+        <p>These replace most <code>for</code> loops. <code>map</code> transforms every item, <code>filter</code> keeps some, <code>find</code> returns the first match, <code>some</code> and <code>every</code> answer yes or no, and <code>reduce</code> folds a list into one value. <code>toSorted</code> returns a sorted copy and leaves the original alone (<code>sort</code> changes the original). <code>Object.groupBy</code> groups items by a key.</p>
+        <pre><code>// Array methods
+const tasks = [
+  { title: "Write", done: true, points: 3 },
+  { title: "Test", done: false, points: 5 },
+  { title: "Ship", done: false, points: 2 },
+];
+console.log(tasks.filter((t) =&gt; !t.done).map((t) =&gt; t.title));
+console.log(tasks.find((t) =&gt; t.points &gt; 4)?.title);
+console.log(tasks.some((t) =&gt; t.done), tasks.every((t) =&gt; t.done));
+console.log(tasks.reduce((total, t) =&gt; total + t.points, 0));
+console.log(tasks.toSorted((a, b) =&gt; a.points - b.points).map((t) =&gt; t.title));
+console.log(Object.groupBy(tasks, (t) =&gt; (t.done ? "done" : "todo")).todo.length);</code></pre>
+        <h3>1.5 Errors: a custom class and <code>cause</code></h3>
+        <p>Throw an <code>Error</code> and catch it with <code>try/catch</code>. A <strong>custom error class</strong> gives a failure its own name, so code can tell failures apart (you build <code>TimeoutError</code> in section 3). <code>cause</code> keeps the original error attached. M05 builds its API errors the same way.</p>
+        <pre><code>// Custom error with cause
+class AppError extends Error {
+  constructor(message, options) {
+    super(message, options);
+    this.name = "AppError";
+  }
+}
+try {
+  try {
+    JSON.parse("{ not json");
+  } catch (err) {
+    throw new AppError("Could not read settings", { cause: err });
+  }
+} catch (err) {
+  console.log(err.name, "-", err.message, "| cause:", err.cause.name);
+}</code></pre>
+        <h3>1.6 Run it</h3>
+        <pre><code>node src/labs/essentials.js</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Total: 22
+Counter: 2
+Ana a Ben 6
+undefined
+10 0
+{ retries: 3 }
+[ 'Test', 'Ship' ]
+Test
+true false
+10
+[ 'Ship', 'Write', 'Test' ]
+2
+AppError - Could not read settings | cause: SyntaxError</code></pre>
+        </div>
+        <h3>1.7 Modules: named exports</h3>
+        <p><code>package.json</code> has <code>"type": "module"</code> (from M01), so you can use <code>import</code> and <code>export</code>. A file <strong>exports</strong> values by name (<code>export const sleep = ...</code>), and another file <strong>imports</strong> them by the same name (<code>import { sleep } from "./toolkit.js"</code>). A <em>default</em> export (<code>export default ...</code>) has no fixed name, so every importer can call it something different, which makes code harder to search. This course uses <strong>named exports</strong>. Always write the <code>.js</code> extension in relative imports.</p>
+        <p>Here "module" means a JavaScript file that imports and exports. It is a different meaning from the course modules (M01, M02, and so on).</p>
+        <h3>Exists, but not needed yet</h3>
+        <p>Know these exist so you recognise them. You do not need to practise them now.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Feature</th><th>What it is for</th></tr></thead>
+            <tbody>
+              <tr><td><code>Map</code> and <code>Set</code></td><td>A <code>Map</code> is like an object that allows any type of key. A <code>Set</code> holds unique values, and has methods such as <code>union</code>, <code>intersection</code> and <code>difference</code>.</td></tr>
+              <tr><td><code>#private</code> fields, getters and setters</td><td>In a <code>class</code>, <code>#balance</code> can only be used inside the class. <code>get</code> and <code>set</code> run code when a property is read or assigned.</td></tr>
+              <tr><td><code>Promise.withResolvers</code>, <code>Promise.try</code>, <code>Array.fromAsync</code></td><td>Helpers for creating a promise you resolve later, for wrapping code that might throw or return a promise, and for collecting async results into an array.</td></tr>
+              <tr><td><code>Temporal</code></td><td>The future replacement for <code>Date</code>. It is not in Node.js 24, so keep using <code>Date</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 1</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c1a"><label for="c1a"><code>node src/labs/essentials.js</code> prints the output above.</label></li>
+            <li><input type="checkbox" id="c1b"><label for="c1b">You can say why <code>0 ?? 10</code> is <code>0</code> but <code>0 || 10</code> is <code>10</code>.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s2">
+        <h2><span class="num">2.</span>How async code runs <span class="time">20 min</span></h2>
+        <p>JavaScript does <strong>one thing at a time</strong>. The place where it keeps track of what is running is the <strong>call stack</strong>. A function that waits for a network reply must not block the stack, so Node.js hands the waiting to the system, carries on, and runs your code later, when the result is ready.</p>
+        <h3>2.1 The event loop and its two queues</h3>
+        <p>Finished work waits in a queue until the stack is empty. There are two queues:</p>
+        <ul>
+          <li>The <strong>task queue</strong> holds timers (<code>setTimeout</code>) and other finished I/O, such as files and network.</li>
+          <li>The <strong>microtask queue</strong> holds promise callbacks (<code>.then</code>, <code>.catch</code>, <code>.finally</code>) and the code that comes after an <code>await</code>.</li>
+        </ul>
+        <p>The <strong>event loop</strong> repeats this: run your synchronous code until the stack is empty, then run <strong>every</strong> microtask, then take <strong>one</strong> task, and repeat. That gives one rule to remember:</p>
+        <div class="callout note">
+          <p class="callout-title">The ordering rule</p>
+          <p>Synchronous code first, then microtasks (promises and <code>await</code>), then the next task (timers). <code>setTimeout(fn, 0)</code> does not run "now". It runs after the current code and all the microtasks.</p>
+        </div>
+        <h3>2.2 Callbacks, promises, async/await</h3>
+        <p>Here is one job written three ways. A <strong>callback</strong> is a function you pass in, to be called later. Nested callbacks get hard to read and hard to handle errors in ("callback hell"). A <strong>promise</strong> is an object for a result that arrives later: chain steps with <code>.then</code> and handle any error with one <code>.catch</code>. <strong><code>async</code>/<code>await</code></strong> is promise code that reads from top to bottom. <code>await</code> pauses <em>that function</em> (not the whole program) until the promise settles, and <code>try/catch</code> handles errors.</p>
+        <pre><code>// Callbacks
+getUser(1, (err, user) =&gt; {
+  if (err) return console.error(err);
+  getPosts(user.id, (err, posts) =&gt; {
+    if (err) return console.error(err);
+    console.log(posts);
+  });
+});
+
+// Promises
+getUser(1)
+  .then((user) =&gt; getPosts(user.id))
+  .then((posts) =&gt; console.log(posts))
+  .catch((err) =&gt; console.error(err));
+
+// async/await
+try {
+  const user = await getUser(1);
+  const posts = await getPosts(user.id);
+  console.log(posts);
+} catch (err) {
+  console.error(err);
+}</code></pre>
+        <p>These three are for reading: <code>getUser</code> and <code>getPosts</code> do not exist, and you run a real example in section 5. An <code>async</code> function always returns a promise. <code>await</code> works inside an <code>async</code> function, and at the top level of a file when it is a module, which is why your lab files can use <code>await</code> directly.</p>
+        <h3>2.3 Predict the output order</h3>
+        <p>This is the module's main checkpoint. Create <code>src/labs/event-loop.js</code>:</p>
+        <pre><code>console.log("1 start");
+
+setTimeout(() =&gt; console.log("2 timeout"), 0);
+
+Promise.resolve().then(() =&gt; console.log("3 promise"));
+
+(async () =&gt; {
+  console.log("4 async function starts");
+  await null;
+  console.log("5 after await");
+})();
+
+console.log("6 end");</code></pre>
+        <ol class="steps">
+          <li>
+            <p><strong>Do not run it yet.</strong> On paper, write the six messages in the order you think they print.</p>
+          </li>
+          <li>
+            <p>Run it and compare.</p>
+            <pre><code>node src/labs/event-loop.js</code></pre>
+            <div class="expect">
+              <p class="expect-title">You should see</p>
+              <pre><code>1 start
+4 async function starts
+6 end
+3 promise
+5 after await
+2 timeout</code></pre>
+            </div>
+          </li>
+        </ol>
+        <details>
+          <summary>Why this order?</summary>
+          <p><code>1 start</code> prints first. <code>setTimeout</code> hands its callback to the task queue and the promise callback goes to the microtask queue, and neither runs yet. The <code>async</code> function runs <strong>synchronously until its first <code>await</code></strong>, so <code>4 async function starts</code> prints straight away, and the rest of the function is queued as a microtask. Then <code>6 end</code> prints and the stack is empty.</p>
+          <p>Now the microtasks run, in the order they were queued: <code>3 promise</code>, then <code>5 after await</code>. Only after that does the event loop take a task: <code>2 timeout</code>, even though its delay was 0.</p>
+        </details>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 2</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c2a"><label for="c2a">You wrote your prediction before running the file.</label></li>
+            <li><input type="checkbox" id="c2b"><label for="c2b">You can explain why <code>2 timeout</code> is last, out loud, without looking at the answer.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s3">
+        <h2><span class="num">3.</span>Build the Async toolkit <span class="time">45 min</span></h2>
+        <p>Four small helpers in one file, each with a self-check that uses <code>node:assert</code>. The checks fail loudly when something is wrong, and you need them because async bugs are easy to miss. Keep everything in <code>src/toolkit/</code>. Do not install any package.</p>
+        <h3>3.1 <code>sleep</code></h3>
+        <p><code>sleep(ms)</code> returns a promise that resolves after <code>ms</code> milliseconds, so <code>await sleep(500)</code> pauses a function. It wraps the callback-style <code>setTimeout</code> in a promise, which is how you adapt any callback API.</p>
+        <ol class="steps">
+          <li>
+            <p>Create <code>src/toolkit/toolkit.js</code>:</p>
+            <pre><code>// The Async toolkit: four small helpers for reliable async code.
+
+export const sleep = (ms) =&gt; new Promise((resolve) =&gt; setTimeout(resolve, ms));</code></pre>
+          </li>
+          <li>
+            <p>Create <code>src/toolkit/check.js</code>. The check measures that <code>sleep</code> really waited:</p>
+            <pre><code>import assert from "node:assert/strict";
+import { sleep } from "./toolkit.js";
+
+// sleep waits at least the time you ask for
+{
+  const start = Date.now();
+  await sleep(100);
+  assert.ok(Date.now() - start &gt;= 90, "sleep should wait about 100 ms");
+  console.log("ok  sleep");
+}</code></pre>
+          </li>
+          <li>
+            <p>Add a script so you can run the checks with one short command, then run it:</p>
+            <pre><code>npm pkg set scripts.check="node src/toolkit/check.js"
+npm run check</code></pre>
+            <div class="expect">
+              <p class="expect-title">You should see</p>
+              <pre><code>ok  sleep</code></pre>
+              <p><code>npm run check</code> prints a couple of extra lines first, starting with <code>&gt;</code>. That is normal.</p>
+            </div>
+          </li>
+        </ol>
+        <h3>3.2 <code>withTimeout</code></h3>
+        <p>Some promises never settle, or take too long. <code>withTimeout(promise, ms)</code> rejects with a <code>TimeoutError</code> if the promise takes longer than <code>ms</code>. It uses <code>Promise.race</code>, which settles with whichever promise finishes first: your work, or a timer that rejects. The <code>.finally</code> clears the timer, otherwise a finished call leaves a timer running that keeps Node.js alive until it fires.</p>
+        <p><code>withTimeout</code> stops <em>waiting</em>. It does not stop the work. To cancel real work such as a <code>fetch</code>, pass it a signal, which section 4 shows.</p>
+        <ol class="steps">
+          <li>
+            <p>Add this to the end of <code>toolkit.js</code>:</p>
+            <pre><code>export class TimeoutError extends Error {
+  constructor(ms) {
+    super(`Timed out after ${ms} ms`);
+    this.name = "TimeoutError";
+  }
+}
+
+export function withTimeout(promise, ms) {
+  let timer;
+  const timeout = new Promise((_, reject) =&gt; {
+    timer = setTimeout(() =&gt; reject(new TimeoutError(ms)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() =&gt; clearTimeout(timer));
+}</code></pre>
+          </li>
+          <li>
+            <p>In <code>check.js</code>, change the import line to <code>import { sleep, withTimeout, TimeoutError } from "./toolkit.js";</code> and add this block at the end:</p>
+            <pre><code>// withTimeout: resolves when fast enough, rejects with TimeoutError when not
+{
+  assert.equal(await withTimeout(sleep(20).then(() =&gt; "done"), 200), "done");
+  await assert.rejects(withTimeout(sleep(300), 50), TimeoutError);
+  console.log("ok  withTimeout");
+}</code></pre>
+            <pre><code>npm run check</code></pre>
+            <div class="expect">
+              <p class="expect-title">You should see</p>
+              <pre><code>ok  sleep
+ok  withTimeout</code></pre>
+            </div>
+          </li>
+        </ol>
+        <h3>3.3 <code>retry</code></h3>
+        <p>Networks fail now and then, and trying again often works. <code>retry(fn, { retries, delayMs })</code> calls <code>fn</code>, and if it throws, waits <code>delayMs</code> and tries again, up to <code>retries</code> more times. After the last retry it throws the last error, so failures are never hidden. <code>fn</code> receives the attempt number, which is handy for logging.</p>
+        <div class="callout warn">
+          <p class="callout-title">return await inside try</p>
+          <p>Inside <code>try</code>, write <code>return await fn()</code>, not <code>return fn()</code>. Without <code>await</code>, the promise leaves the function before it settles, so your <code>catch</code> never sees the failure and <code>retry</code> would not retry.</p>
+        </div>
+        <ol class="steps">
+          <li>
+            <p>Add this to the end of <code>toolkit.js</code>:</p>
+            <pre><code>export async function retry(fn, { retries = 3, delayMs = 100 } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn(attempt);
+    } catch (err) {
+      if (attempt &gt;= retries) throw err;
+      await sleep(delayMs);
+    }
+  }
+}</code></pre>
+          </li>
+          <li>
+            <p>Change the import line to <code>import { sleep, withTimeout, TimeoutError, retry } from "./toolkit.js";</code> and add this block at the end of <code>check.js</code>:</p>
+            <pre><code>// retry: succeeds after failures, and gives up after the last retry
+{
+  let calls = 0;
+  const flaky = async () =&gt; {
+    calls++;
+    if (calls &lt; 3) throw new Error("not yet");
+    return "worked";
+  };
+  assert.equal(await retry(flaky, { retries: 3, delayMs: 10 }), "worked");
+  assert.equal(calls, 3);
+
+  let failures = 0;
+  const alwaysFails = async () =&gt; {
+    failures++;
+    throw new Error("nope");
+  };
+  await assert.rejects(retry(alwaysFails, { retries: 2, delayMs: 10 }), /nope/);
+  assert.equal(failures, 3, "1 first try + 2 retries");
+  console.log("ok  retry");
+}</code></pre>
+            <pre><code>npm run check</code></pre>
+            <div class="expect">
+              <p class="expect-title">You should see</p>
+              <pre><code>ok  sleep
+ok  withTimeout
+ok  retry</code></pre>
+            </div>
+          </li>
+        </ol>
+        <h3>3.4 <code>mapLimit</code></h3>
+        <p><code>Promise.all</code> starts everything at once. For 1,000 requests that overloads a server and can get you blocked. <code>mapLimit(items, limit, fn)</code> runs <code>fn</code> on every item with <strong>at most <code>limit</code> at a time</strong>, and returns the results <strong>in the original order</strong>. It starts <code>limit</code> workers. Each worker takes the next unclaimed index, runs <code>fn</code>, stores the result at that index, and repeats until the items run out. JavaScript runs one piece of code at a time, so <code>next++</code> is safe: no two workers can take the same index.</p>
+        <ol class="steps">
+          <li>
+            <p>Add this to the end of <code>toolkit.js</code>:</p>
+            <pre><code>export async function mapLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+
+  async function worker() {
+    while (next &lt; items.length) {
+      const index = next++;
+      results[index] = await fn(items[index], index);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, worker);
+  await Promise.all(workers);
+  return results;
+}</code></pre>
+          </li>
+          <li>
+            <p>Change the import line to <code>import { sleep, withTimeout, TimeoutError, retry, mapLimit } from "./toolkit.js";</code> and add this block at the end of <code>check.js</code>:</p>
+            <pre><code>// mapLimit: keeps order, and never runs more than `limit` at once
+{
+  let running = 0;
+  let peak = 0;
+  const results = await mapLimit([1, 2, 3, 4, 5, 6], 2, async (n) =&gt; {
+    running++;
+    peak = Math.max(peak, running);
+    await sleep(30);
+    running--;
+    return n * 10;
+  });
+  assert.deepEqual(results, [10, 20, 30, 40, 50, 60]);
+  assert.equal(peak, 2);
+  console.log("ok  mapLimit");
+}
+
+console.log("All checks passed");</code></pre>
+            <pre><code>npm run check</code></pre>
+            <div class="expect">
+              <p class="expect-title">You should see</p>
+              <pre><code>ok  sleep
+ok  withTimeout
+ok  retry
+ok  mapLimit
+All checks passed</code></pre>
+            </div>
+          </li>
+        </ol>
+        <h3>3.5 See a check fail</h3>
+        <p>A check you have never seen fail proves little. Break <code>retry</code> on purpose, in <code>toolkit.js</code>: change <code>if (attempt &gt;= retries) throw err;</code> to <code>if (attempt &gt; retries) throw err;</code>, then run <code>npm run check</code>.</p>
+        <div class="expect">
+          <p class="expect-title">You should see (the first lines of the error)</p>
+          <pre><code>AssertionError [ERR_ASSERTION]: 1 first try + 2 retries
+
+4 !== 3</code></pre>
+        </div>
+        <p>The broken version tried 4 times instead of 3, and the check caught it. Change <code>&gt;</code> back to <code>&gt;=</code> and run <code>npm run check</code> until it passes.</p>
+        <h3>3.6 Save your work</h3>
+        <pre><code>git add .
+git commit -m "Add async toolkit"
+git push</code></pre>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 3</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c3a"><label for="c3a"><code>npm run check</code> prints four <code>ok</code> lines and <code>All checks passed</code>.</label></li>
+            <li><input type="checkbox" id="c3b"><label for="c3b">You saw a check fail, then fixed it.</label></li>
+            <li><input type="checkbox" id="c3c"><label for="c3c"><code>src/toolkit/</code> is on GitHub.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s4">
+        <h2><span class="num">4.</span>Fetch: sequential vs parallel <span class="time">15 min</span></h2>
+        <p><code>fetch</code> is built into Node.js 24, so you need no package. You will request posts from <a href="https://jsonplaceholder.typicode.com">JSONPlaceholder</a>, a free test API that needs no key, and compare two ways of waiting.</p>
+        <h3>4.1 Time it</h3>
+        <p><strong>Sequential</strong> means one request at a time: you wait for each before starting the next. <strong>Parallel</strong> means you start them all, then wait for all of them with <code>Promise.all</code>. Create <code>src/labs/fetch-timing.js</code>. Part 1 uses <code>sleep</code> so the numbers are predictable. Part 2 uses real requests.</p>
+        <pre><code>import { sleep } from "../toolkit/toolkit.js";
+
+async function time(label, work) {
+  const start = performance.now();
+  await work();
+  console.log(`${label.padEnd(22)} ${Math.round(performance.now() - start)} ms`);
+}
+
+// Part 1: five fake jobs of 200 ms each. The numbers here are predictable.
+const jobs = [1, 2, 3, 4, 5];
+await time("sleep, sequential", async () =&gt; {
+  for (const job of jobs) await sleep(200);
+});
+await time("sleep, parallel", () =&gt; Promise.all(jobs.map(() =&gt; sleep(200))));
+
+// Part 2: ten real requests to JSONPlaceholder.
+const BASE = "https://jsonplaceholder.typicode.com/posts";
+const ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+async function getPost(id) {
+  const response = await fetch(`${BASE}/${id}`, { signal: AbortSignal.timeout(5000) });
+  if (!response.ok) throw new Error(`HTTP ${response.status} for post ${id}`);
+  return response.json();
+}
+
+await time("fetch, sequential", async () =&gt; {
+  for (const id of ids) await getPost(id);
+});
+await time("fetch, parallel", () =&gt; Promise.all(ids.map(getPost)));</code></pre>
+        <p>Notes on the code: <code>fetch</code> only rejects when the network fails, so you check <code>response.ok</code> yourself (a <code>404</code> is a normal response). <code>AbortSignal.timeout(5000)</code> cancels the request after 5 seconds and rejects with a <code>TimeoutError</code>, which is the real cancellation that <code>withTimeout</code> cannot do. <code>response.json()</code> parses the body as JSON.</p>
+        <pre><code>node src/labs/fetch-timing.js</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>sleep, sequential      1003 ms
+sleep, parallel        201 ms
+fetch, sequential      375 ms
+fetch, parallel        259 ms</code></pre>
+          <p>The <code>sleep</code> numbers will be close to these on any machine: five 200 ms waits one after another take about 1000 ms, and all at once about 200 ms. The <code>fetch</code> numbers depend on your connection, but parallel should be lower. The first run can be much slower for both because the connection is being set up, so run the file twice. Write your own numbers down.</p>
+        </div>
+        <details>
+          <summary>Why is parallel faster?</summary>
+          <p>Waiting is not work. While one request waits for the network, your program can start another. Sequential code waits for the total of all the delays, and parallel code waits only for the slowest one.</p>
+        </details>
+        <h3>4.2 When one of them fails</h3>
+        <p><code>Promise.all</code> rejects as soon as <strong>one</strong> promise rejects. Pick the helper that fits:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Helper</th><th>Settles when</th><th>Use it when</th></tr></thead>
+            <tbody>
+              <tr><td><code>Promise.all</code></td><td>All succeed, or the first one fails</td><td>You need every result and one failure means failure.</td></tr>
+              <tr><td><code>Promise.allSettled</code></td><td>All finish, success or not</td><td>You want each result or error, such as a batch where some may fail.</td></tr>
+              <tr><td><code>Promise.race</code></td><td>The first one settles</td><td>You want the fastest answer, or a timeout (<code>withTimeout</code> uses it).</td></tr>
+              <tr><td><code>Promise.any</code></td><td>The first one succeeds</td><td>You want the first success and can ignore failures.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>For many requests, combine the toolkit: <code>await mapLimit(ids, 5, (id) =&gt; retry(() =&gt; getPost(id)))</code> fetches with at most 5 at a time, and retries each failed one.</p>
+        <h3>4.3 Common pitfalls</h3>
+        <p>Each of these looks fine and goes wrong. Learn to spot them.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Pitfall</th><th>What happens</th><th>Fix</th></tr></thead>
+            <tbody>
+              <tr><td>Forgotten <code>await</code></td><td><code>const v = fetchThing();</code> gives <code>Promise { &lt;pending&gt; }</code>, not the value.</td><td>Add <code>await</code>.</td></tr>
+              <tr><td><code>await</code> in a loop for independent work</td><td>Each call waits for the previous one, so it is slow (see 4.1).</td><td><code>Promise.all</code>, or <code>mapLimit</code> for many. A loop is right when each step needs the previous result.</td></tr>
+              <tr><td><code>items.forEach(async ...)</code></td><td><code>forEach</code> does not wait. The line after it runs first, and you cannot catch errors.</td><td>Use <code>for (const x of items) await ...</code>, or <code>await Promise.all(items.map(...))</code>.</td></tr>
+              <tr><td>Unhandled rejection</td><td>A rejected promise nobody handles crashes Node.js (it exits with code 1).</td><td><code>await</code> it inside <code>try/catch</code>, or add <code>.catch</code>.</td></tr>
+              <tr><td>Swallowed error</td><td><code>catch {}</code> with nothing inside hides the failure.</td><td>Handle it, log it, or rethrow it.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>You can see the <code>forEach</code> one yourself. Put this in a file called <code>scratch.js</code> in the repo root, run <code>node scratch.js</code>, then delete it with <code>rm scratch.js</code> so it is not committed:</p>
+        <pre><code>const sleep = (ms) =&gt; new Promise((resolve) =&gt; setTimeout(resolve, ms));
+const save = async (x) =&gt; { await sleep(50); console.log("saved", x); };
+
+[1, 2].forEach(async (x) =&gt; await save(x));
+console.log("forEach finished");</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>forEach finished
+saved 1
+saved 2</code></pre>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 4</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c4a"><label for="c4a">Your sleep timings are about 1000 ms and 200 ms.</label></li>
+            <li><input type="checkbox" id="c4b"><label for="c4b">Your parallel <code>fetch</code> time is lower than your sequential one, and you wrote both numbers down.</label></li>
+            <li><input type="checkbox" id="c4c"><label for="c4c">You can name the five pitfalls.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>Callbacks to promises <span class="time">10 min</span></h2>
+        <p>Older Node.js code uses <strong>callbacks</strong> for files. The error comes first, then the result, and every step nests deeper. You will rewrite one example with <code>node:fs/promises</code> and <code>async</code>/<code>await</code>.</p>
+        <ol class="steps">
+          <li>
+            <p>Create <code>src/labs/notes.txt</code> with three lines of any text, such as:</p>
+            <pre><code>Callbacks come first.
+Promises come next.
+async/await reads best.</code></pre>
+          </li>
+          <li>
+            <p>Create <code>src/labs/fs-callbacks.js</code>. It reads the file and writes an upper-case copy:</p>
+            <pre><code>import fs from "node:fs";
+
+const file = new URL("./notes.txt", import.meta.url);
+
+fs.readFile(file, "utf8", (err, text) =&gt; {
+  if (err) {
+    console.error("Could not read the file:", err.message);
+    return;
+  }
+  const upper = text.toUpperCase();
+  fs.writeFile(new URL("./notes-upper.txt", import.meta.url), upper, (err) =&gt; {
+    if (err) {
+      console.error("Could not write the file:", err.message);
+      return;
+    }
+    console.log("Wrote notes-upper.txt");
+  });
+});</code></pre>
+            <p><code>new URL("./notes.txt", import.meta.url)</code> is the file's path relative to the code file, so it works from any folder and on every operating system.</p>
+            <pre><code>node src/labs/fs-callbacks.js</code></pre>
+            <div class="expect">
+              <p class="expect-title">You should see</p>
+              <pre><code>Wrote notes-upper.txt</code></pre>
+            </div>
+          </li>
+          <li>
+            <p>Now refactor it. Create <code>src/labs/fs-promises.js</code> with the same behaviour:</p>
+            <pre><code>import { readFile, writeFile } from "node:fs/promises";
+
+const file = new URL("./notes.txt", import.meta.url);
+
+try {
+  const text = await readFile(file, "utf8");
+  await writeFile(new URL("./notes-upper.txt", import.meta.url), text.toUpperCase());
+  console.log("Wrote notes-upper.txt");
+} catch (err) {
+  console.error("Could not read or write the file:", err.message);
+}</code></pre>
+            <p>The nesting is gone, and one <code>try/catch</code> handles both failures. Run it, and check the new file:</p>
+            <pre><code>node src/labs/fs-promises.js
+cat src/labs/notes-upper.txt</code></pre>
+            <div class="expect">
+              <p class="expect-title">You should see</p>
+              <pre><code>Wrote notes-upper.txt
+CALLBACKS COME FIRST.
+PROMISES COME NEXT.
+ASYNC/AWAIT READS BEST.</code></pre>
+            </div>
+          </li>
+          <li>
+            <p>Save your work. This is the last commit for this module:</p>
+            <pre><code>git add .
+git commit -m "Add async labs"
+git push</code></pre>
+          </li>
+        </ol>
+        <p>On Windows <code>cat</code> works in Git Bash. In PowerShell use <code>type src/labs/notes-upper.txt</code>.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 5</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c5a"><label for="c5a">Both <code>fs</code> versions print the same output.</label></li>
+            <li><input type="checkbox" id="c5b"><label for="c5b"><code>src/labs/</code> is on GitHub.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="check">
+        <h2>Check your understanding <span class="time">5 min</span></h2>
+        <p>Answer each one in your head, then open it to compare.</p>
+        <details>
+          <summary>Why does a resolved promise's <code>.then</code> run before <code>setTimeout(fn, 0)</code>?</summary>
+          <p>Promise callbacks go in the microtask queue, and timers go in the task queue. After the current code finishes, the event loop runs all microtasks before it takes the next task.</p>
+        </details>
+        <details>
+          <summary>Why is <code>await</code> inside a <code>for</code> loop slow for independent calls, and when is it the right choice?</summary>
+          <p>Each iteration waits for the previous one, so the total time is the sum of all the delays. Use <code>Promise.all</code> (or <code>mapLimit</code> for many items) for independent calls. A loop is right when each step needs the previous result, or when you must not run steps at the same time.</p>
+        </details>
+        <details>
+          <summary>What is wrong with <code>items.forEach(async (x) =&gt; await save(x))</code>?</summary>
+          <p><code>forEach</code> ignores the promises its callback returns, so it does not wait. Code after it runs before the saves finish, and errors become unhandled rejections. Use <code>for...of</code> with <code>await</code>, or <code>await Promise.all(items.map(save))</code>.</p>
+        </details>
+        <details>
+          <summary>What does <code>retry</code> do when <code>fn</code> fails on the last attempt?</summary>
+          <p>It throws that last error. The caller sees the failure, and nothing is hidden. With <code>retries: 2</code>, <code>fn</code> runs at most 3 times: the first try and 2 retries.</p>
+        </details>
+        <details>
+          <summary>Why must <code>withTimeout</code> clear its timer, and what does it not do?</summary>
+          <p>If the work finishes first, the timer is still counting down. An uncleared timer keeps the Node.js process alive until it fires. <code>withTimeout</code> only stops <em>waiting</em>. The underlying work keeps running, and to really cancel a <code>fetch</code> you pass it <code>AbortSignal.timeout(ms)</code>.</p>
+        </details>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <details>
+          <summary><code>SyntaxError: Cannot use import statement outside a module</code></summary>
+          <p>Node.js is treating your file as CommonJS. Check that <code>package.json</code> in the repo root has <code>"type": "module"</code> (set in M01), and that you run the command from the <code>node-js-training</code> folder.</p>
+        </details>
+        <details>
+          <summary><code>ERR_MODULE_NOT_FOUND</code> when you import <code>./toolkit</code></summary>
+          <p>In ES modules a relative import needs the file extension. Write <code>"./toolkit.js"</code>, and check the path and spelling.</p>
+        </details>
+        <details>
+          <summary>`SyntaxError: The requested module './toolkit.js' does not provide an export named ...</summary>
+          <p>The name in <code>import { ... }</code> does not match an <code>export</code> in <code>toolkit.js</code>. Check spelling and capital letters, and that you added every function to <code>toolkit.js</code> before you imported it in <code>check.js</code>.</p>
+        </details>
+        <details>
+          <summary><code>npm run check</code> says "Missing script: check"</summary>
+          <p>The script was not added. Run <code>npm pkg set scripts.check="node src/toolkit/check.js"</code> from the repo root, and look for <code>"check"</code> under <code>scripts</code> in <code>package.json</code>.</p>
+        </details>
+        <details>
+          <summary><code>npm run check</code> hangs and never finishes</summary>
+          <p>A promise in one of your functions never settles. Check that <code>sleep</code> calls <code>resolve</code>, and that <code>retry</code> and <code>mapLimit</code> use <code>await</code>. Press <code>Ctrl+C</code> to stop it.</p>
+        </details>
+        <details>
+          <summary><code>TypeError: fetch failed</code></summary>
+          <p>The network request could not be made: you are offline, the site is blocked, or a proxy is in the way. Check you can open <code>https://jsonplaceholder.typicode.com/posts/1</code> in a browser. If you cannot, part 1 of <code>fetch-timing.js</code> (the <code>sleep</code> part) still proves the idea, and you can come back to part 2 later.</p>
+        </details>
+        <details>
+          <summary>The parallel <code>fetch</code> is not much faster than the sequential one</summary>
+          <p>That can be normal. On a fast connection to a nearby server each request is quick, and setting up connections takes a share of the time. Run it twice, as the first run is slower. The <code>sleep</code> numbers show the idea clearly: about 1000 ms against about 200 ms.</p>
+        </details>
+        <details>
+          <summary>The script crashes with an error and the word "unhandled" or <code>[ERR_UNHANDLED_REJECTION]</code></summary>
+          <p>A promise was rejected and nobody handled it. Find the call that was not <code>await</code>ed or has no <code>.catch</code>, and put it inside <code>try/catch</code>.</p>
+        </details>
+        <details>
+          <summary><code>ENOENT: no such file or directory</code> in the <code>fs</code> lab</summary>
+          <p><code>notes.txt</code> is not in <code>src/labs/</code>, or has a different name. Create it there, and check the spelling.</p>
+        </details>
+      </section>
+
+      <section id="done">
+        <h2>You're done when</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="d1"><label for="d1"><code>npm run check</code> prints <code>All checks passed</code>.</label></li>
+          <li><input type="checkbox" id="d2"><label for="d2">You predicted the output order of <code>event-loop.js</code> before running it, and can explain it.</label></li>
+          <li><input type="checkbox" id="d3"><label for="d3">You have your own numbers showing parallel faster than sequential, and can say why.</label></li>
+          <li><input type="checkbox" id="d4"><label for="d4"><code>fs-promises.js</code> works and gives the same result as <code>fs-callbacks.js</code>.</label></li>
+          <li><input type="checkbox" id="d5"><label for="d5">Everything is committed and pushed to your repo.</label></li>
+        </ul>
+        <p>Keep <code>src/toolkit/toolkit.js</code> as it is. M04 converts it to TypeScript, and later modules reuse its helpers.</p>
+      </section>
+
+      <nav class="pager" aria-label="Module navigation">
+        <a href="../../index.html">&larr; All modules</a>
+        <span>Next: M03, Node.js Runtime &amp; npm (coming soon).</span>
+      </nav>
+    </main>
+  </div>
+</body>
+</html>
