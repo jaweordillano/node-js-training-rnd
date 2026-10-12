@@ -21,6 +21,14 @@ reduced to `init`, `add`, `commit`, `remote`, `push` and `status`. Students crea
 building in it for every later module. The sections now are: set up tools, Git crash course, create
 your project, check your understanding, troubleshooting and "you're done when".
 
+**Pull request exercise added (2026-10-12).** The page grew from about 90 to about 135 minutes. A new
+section 4, "Exercise: your first pull request" (45 min), follows the remaining brief and tasks
+items: a `feat/greeting` branch with three Conventional Commits, a PR opened and merged on the GitHub
+website, and a deliberate merge conflict resolved locally in VS Code. Section 2 gained branches,
+GitHub Flow, a conceptual merge vs rebase note and Conventional Commits. I ran the Git commands and
+took the expected output from a scratch repo with a local bare remote. The GitHub web steps were
+not run.
+
 ## Why it's built this way (key decisions)
 
 - Why did you structure your branches and commits the way you did?
@@ -61,6 +69,20 @@ your project, check your understanding, troubleshooting and "you're done when".
 - Students create the GitHub repo empty in the browser, then `git remote add origin` and
   `git push -u origin main`, so `remote` is practised, not skipped.
 
+**Decisions on the pull request exercise (2026-10-12)**
+
+- The conflict is between the PR branch and `main`, not between two side branches. A second branch
+  (`feat/shout`) is merged into `main` to play the teammate, then `main` is merged into the PR branch
+  and the conflict is resolved there. That puts the resolution commit inside the PR's own history, as
+  a real PR conflict would.
+- The PR is opened and merged on the GitHub website, not with `gh pr`. `gh` stays only for sign-in.
+- Students push straight to `main` once, to simulate the teammate. The page says so.
+- The page says to use the plain *Merge pull request* button, because squash or rebase would erase
+  the three commits the brief asks for.
+- `revert` vs `reset` is still cut, even though `brief.md` and `tasks.md` ask for it. It was not part
+  of this request.
+- After M01, later modules go back to the plain add/commit/push loop on `main`.
+
 ## How to build it (teach it to the next trainee)
 
 Write a guide to taking a change through branch → PR → merge, including a real conflict, using your
@@ -86,6 +108,12 @@ Anything that didn't behave the way you expected the first time.
 - Running the first plan's approval without answering its three questions meant defaults were used.
   Answer them, or the defaults stand.
 
+- (2026-10-12) My first scratch run merged the PR branch into `main` locally before the conflict
+  step, which would have defeated the PR. I redesigned the flow so the conflict is resolved on the PR
+  branch. `git merge` with a conflict opens an editor on a plain `git commit`, so the page uses
+  `-m`. One troubleshooting item blamed the wrong step ("Already up to date"); I corrected it.
+- (2026-10-12) The home page blurb still said "five Git commands" after the change; fixed.
+
 ## Checkpoint evidence
 
 Show the merged PR link, your `.gitignore`/`.env.example`, and your own explanation of
@@ -102,3 +130,8 @@ later.
 
 Still open: Windows, macOS, nvm, `gh` and a real `git push` have not been run; the Google Doc is
 stale; `brief.md`, `tasks.md` and possibly `docs/prd/` still describe the old deliverable.
+
+(2026-10-12) For the pull request exercise: run the GitHub website steps once end to end and check the
+button names. Still open: the GitHub web UI steps and Windows, macOS, nvm, `gh` and a real
+`git push` are untested; `README.md` still lists "five core Git commands" for M01; `brief.md` and
+`tasks.md` still ask for `revert` vs `reset`, which the page does not teach.

@@ -95,3 +95,34 @@ later module extends.
 - `docs/prd/` and `docs/arch-docs/` may still describe the old M01 deliverable. Not checked.
 - Not run: `git push` to GitHub, Windows, macOS, nvm, `gh`. Not viewed in a browser.
 - Pattern: use `npm pkg set` instead of hand-editing `package.json`; it behaves the same on every OS.
+
+## Update: pull request exercise (2026-10-12)
+
+Added section 4 (branch, PR on the GitHub website, deliberate conflict, merge) and Git concepts in
+section 2. Time is now about 135 minutes.
+
+### Criteria results
+
+- One `<h1>`, no JavaScript, no external links, unique ids, every label matches a checkbox: PASS
+- Every `#anchor` and relative link resolves; only classes in `assets/style.css` are used: PASS
+- HTML and Markdown have the same sections, subsections, checkpoints, hashes and 22 questions: PASS
+- Time plan 30 + 20 + 40 + 45 = 135 minutes: PASS
+- Git commands and expected output run in a scratch repo (Git 2.53, Node 24): PASS
+- GitHub web UI steps: NOT RUN
+
+### Issues found and fixed
+
+- Troubleshooting for "Already up to date" blamed the wrong step; reworded in both twins.
+- Home page blurb still said "five Git commands"; updated.
+
+### Backlog
+
+- `README.md` stage table still says "five core Git commands" for M01.
+- `revert` vs `reset` is still not taught, though the brief asks for it.
+- Run the GitHub web steps once and check the button names. Check dark mode and phone width.
+- Section 4 sits at about 42 minutes of work in a 45-minute slot, so it is tight for slow typists.
+
+### Pattern
+
+- Run the Git commands in a scratch repo with a local bare remote (`git init --bare`) to get real
+  output without touching GitHub.

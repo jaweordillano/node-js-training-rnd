@@ -1,24 +1,26 @@
 # M01 — Dev Environment, Git & GitHub
 
-**Module M01 · Week 1 · Day 1 · about 90 minutes**
+**Module M01 · Week 1 · Day 1 · about 2 hours 15 minutes**
 
-Install your tools, learn the five Git commands you need, and push your `node-js-training` project
-to GitHub.
+Install your tools, learn the Git commands you need, push your `node-js-training` project to
+GitHub, and take a change through a pull request, including a merge conflict.
 
 ## Overview & time plan
 
 **Builds on:** nothing. This is the first module.
 
 This course is about Node.js, and Git is only the tool that saves your work. You learn the few Git
-commands you will use every day, and nothing more.
+commands you will use every day, and nothing more. The last section is an exercise that takes one
+change through a branch, a pull request, a merge conflict and a merge, the way teams work on GitHub.
 
 By the end you will have a public GitHub repo called `node-js-training` with a small Node.js project
 in it. **You will keep building in this one project for the whole course.** Every later module adds
 to it.
 
 1. Set up your tools: 30 min
-2. Git crash course: 15 min
+2. Git crash course: 20 min
 3. Create your project: 40 min
+4. Exercise: your first pull request: 45 min
 
 Type the commands yourself. A block labelled *You should see* shows what to expect. Your hashes and
 version numbers will differ. If anything else differs, check [Troubleshooting](#troubleshooting).
@@ -160,7 +162,7 @@ That is all the terminal you need to start. Try each one.
 - [ ] `node --version` starts with `v24`.
 - [ ] `gh auth status` says you're logged in.
 
-## 2. Git crash course (15 min)
+## 2. Git crash course (20 min)
 
 Git saves snapshots of your project, called **commits**, and GitHub keeps a copy online. Your work
 moves through four places:
@@ -180,12 +182,52 @@ snapshot with `git commit`, and upload it with `git push`.
 | `git remote add origin URL` | Tell Git where your GitHub repo is. `origin` is just the usual name for it. Run it once per project. |
 | `git push` | Upload your commits to GitHub. |
 | `git status` | Show what is changed, staged or not saved yet. Run it whenever you are unsure. |
+| `git switch -c name` | Create a new branch called `name` and move onto it. |
+| `git switch name` | Move onto an existing branch. |
+| `git merge name` | Bring the commits of branch `name` into the branch you are on. |
+| `git pull` | Download new commits from GitHub into your branch. |
 
-From now on, finish every piece of work the same way: `git add .`, `git commit -m "..."`,
-`git push`. You will use it in the next stage.
+### 2.1 Branches
 
-> **What we skip.** Git can do much more, such as branches, pull requests and undoing commits. You
-> don't need any of it for this course, so we leave it out. Learn it later on a real team.
+A **branch** is a separate line of commits. `main` is the branch that holds your working project.
+When you want to try a change, you make a branch, commit there, and bring it back into `main` when it
+is ready. If it goes wrong, `main` is untouched. Teams do this for every change, and the exercise in
+section 4 follows the same steps, called **GitHub Flow**:
+
+1. Create a branch from `main`.
+2. Commit your change on that branch and push it.
+3. Open a **pull request** (PR) on GitHub. A PR asks to merge your branch into `main` and shows the
+   changes so they can be reviewed.
+4. Merge the PR.
+
+### 2.2 Merge vs rebase
+
+There are two ways to bring one branch's work into another. **Merge** joins the two histories and
+keeps what really happened, including a merge commit where they meet. **Rebase** replays your commits
+on top of the other branch, so the history looks like one straight line, but it rewrites your
+commits. You only use merge here. Rebase is worth reading about later, once you work in a team.
+
+If two branches change the same line, Git cannot pick one, and it stops with a **merge conflict** for
+you to resolve. You will make one on purpose in section 4.
+
+### 2.3 Conventional Commits
+
+From section 4 on, write commit messages as `type: short description`. The type says what kind of
+change it is, so the history is easy to scan.
+
+| Type | Use it for |
+| --- | --- |
+| `feat:` | A new feature or behaviour, such as `feat: print a greeting`. |
+| `fix:` | A bug fix. |
+| `docs:` | Documentation only, such as the README. |
+| `chore:` | Housekeeping that changes no behaviour, such as config files. |
+
+Outside the exercise, work on `main` and finish with `git add .`, `git commit -m "..."`,
+`git push`. You use that loop in the next module.
+
+> **What we skip.** Git can do much more, such as undoing commits (`revert` and `reset`), `stash`
+> and rebase. You don't need them for this course, so we leave them out. Learn them later on a real
+> team.
 
 ## 3. Create your project (40 min)
 
@@ -395,6 +437,249 @@ and see the new line in `src/hello.js`, and two commits in the history.
 - [ ] `git log --oneline` shows two commits.
 - [ ] GitHub shows all your files, and no `.env` or `node_modules`.
 
+## 4. Exercise: your first pull request (45 min)
+
+You will change the greeting on a branch, open a pull request on the GitHub website, make a merge
+conflict on purpose, resolve it, and merge. You work alone, so you also play the teammate who causes
+the conflict. Run every command inside `node-js-training`, and start from a clean `main`:
+`git status` should say *nothing to commit*.
+
+### 4.1 Make a branch with three commits
+
+1. Create the branch and change the greeting.
+
+   ```bash
+   git switch -c feat/greeting
+   ```
+
+   Replace the contents of `src/hello.js` with:
+
+   ```js
+   console.log("Hello from my first branch!");
+   ```
+
+   ```bash
+   git add .
+   git commit -m "feat: change the greeting"
+   ```
+
+2. Add a line to the end of `README.md`, then commit it.
+
+   ```markdown
+   Run it with `npm start`.
+   ```
+
+   ```bash
+   git add .
+   git commit -m "docs: explain how to run the project"
+   ```
+
+3. Add a description to `package.json`, then commit it.
+
+   ```bash
+   npm pkg set description="My Node.js training project"
+   git add .
+   git commit -m "chore: add a project description"
+   ```
+
+4. Push the branch. `-u` remembers it, as before.
+
+   ```bash
+   git push -u origin feat/greeting
+   ```
+
+*You should see:*
+
+```text
+$ git log --oneline
+ad3f5ed chore: add a project description
+143ed6d docs: explain how to run the project
+9b4c487 feat: change the greeting
+f08fac5 Print my name
+```
+
+After the push, the last lines say `* [new branch] feat/greeting -> feat/greeting` and
+`branch 'feat/greeting' set up to track 'origin/feat/greeting'`. Your hashes will differ, and the
+last commit is whatever your previous commit was called.
+
+**Checkpoint 3**
+
+- [ ] You have three commits on `feat/greeting`, each starting with `feat:`, `docs:` or `chore:`.
+- [ ] `git status` says the branch is up to date with `origin/feat/greeting`.
+
+### 4.2 Open the pull request on GitHub
+
+1. Open your `node-js-training` repo on GitHub and reload. A yellow banner says *feat/greeting had
+   recent pushes*. Click **Compare & pull request**. If the banner is gone, open the *Pull requests*
+   tab, click **New pull request**, leave *base* as `main`, and set *compare* to `feat/greeting`.
+2. Give it a title such as `Change the greeting`. In the description, write one or two sentences
+   about what changed and why. Leave everything else as it is.
+3. Click **Create pull request**.
+4. Open the *Commits* tab. Your three commits are listed. Then open *Files changed*, which shows every
+   line you added or removed. This is where a teammate would review you. With no partner, read it
+   yourself as if someone else wrote it.
+
+**Do not merge yet.**
+
+*You should see:* a page titled with your PR title and a number such as *#1*. A green **Merge pull
+request** button appears near the bottom, and the *Commits* tab shows **3**.
+
+**Checkpoint 4**
+
+- [ ] The PR is open and its *Commits* tab lists three commits.
+
+### 4.3 Make a merge conflict on purpose
+
+Now play the teammate. They change the same line of `hello.js` on their own branch, and their change
+reaches `main` before yours.
+
+1. Make a second branch from `main` and change line 1 of `src/hello.js`.
+
+   ```bash
+   git switch main
+   git switch -c feat/shout
+   ```
+
+   ```js
+   console.log("HELLO, NODE!");
+   ```
+
+   ```bash
+   git add .
+   git commit -m "feat: shout the greeting"
+   ```
+
+2. Merge it into `main` and push. This is the one time you push straight to `main`, to pretend a
+   teammate's PR was merged.
+
+   ```bash
+   git switch main
+   git merge feat/shout
+   git push
+   ```
+
+3. Go back to your PR page on GitHub and reload. It now says *This branch has conflicts that must be
+   resolved*, because `main` and your branch both changed line 1. GitHub offers a *Resolve
+   conflicts* button, but resolve it on your machine so you see what Git does.
+
+*You should see:*
+
+```text
+$ git merge feat/shout
+Updating f08fac5..5e8da2a
+Fast-forward
+ src/hello.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+```
+
+Fast-forward just means `main` had no other changes, so Git moved it forward.
+
+### 4.4 Resolve the conflict
+
+1. Move back to your PR branch and bring `main` into it.
+
+   ```bash
+   git switch feat/greeting
+   git merge main
+   ```
+
+   Git stops, because it cannot choose between the two versions of line 1.
+
+   *You should see:*
+
+   ```text
+   Auto-merging src/hello.js
+   CONFLICT (content): Merge conflict in src/hello.js
+   Automatic merge failed; fix conflicts and then commit the result.
+   ```
+
+   `git status -s` shows `UU src/hello.js`: both sides changed it.
+
+2. Open `src/hello.js` in VS Code. Git has written both versions into the file:
+
+   ```text
+   <<<<<<< HEAD
+   console.log("Hello from my first branch!");
+   =======
+   console.log("HELLO, NODE!");
+   >>>>>>> main
+   ```
+
+   Between `<<<<<<< HEAD` and `=======` is your branch's line. Between `=======` and
+   `>>>>>>> main` is the one from `main`. VS Code also shows buttons above it: *Accept Current
+   Change* (yours), *Accept Incoming Change* (from `main`) and *Accept Both Changes*.
+
+3. Decide what the line should say and delete the three marker lines. For this exercise, make the
+   file contain just one line, which combines both ideas:
+
+   ```js
+   console.log("HELLO FROM MY FIRST BRANCH!");
+   ```
+
+   You can click a button and then edit, or type it yourself. Either way, no `<<<<<<<`, `=======` or
+   `>>>>>>>` line may be left. Check that it runs.
+
+   ```bash
+   node src/hello.js
+   ```
+
+4. Tell Git the conflict is resolved by committing, then push.
+
+   ```bash
+   git add .
+   git commit -m "fix: resolve conflict with main"
+   git push
+   ```
+
+*You should see:*
+
+```text
+$ node src/hello.js
+HELLO FROM MY FIRST BRANCH!
+$ git log --oneline --graph
+*   939efef fix: resolve conflict with main
+|\
+| * 5e8da2a feat: shout the greeting
+* | ad3f5ed chore: add a project description
+* | 143ed6d docs: explain how to run the project
+* | 9b4c487 feat: change the greeting
+|/
+* f08fac5 Print my name
+```
+
+The two lines that split and join again are the conflict in your history. Reload the PR on GitHub:
+the conflict warning is gone.
+
+**Checkpoint 5**
+
+- [ ] No `<<<<<<<`, `=======` or `>>>>>>>` lines remain in `src/hello.js`, and `node src/hello.js`
+      runs.
+- [ ] `git log --oneline --graph` shows the branch splitting and joining.
+- [ ] The PR on GitHub shows no conflicts.
+
+### 4.5 Merge the pull request
+
+1. On the PR page, click the green **Merge pull request** button, then **Confirm merge**. Click the
+   button itself, not the small arrow beside it. The arrow offers *Squash and merge* and *Rebase and
+   merge*, which would rewrite your three commits. Use the default, *Create a merge commit*.
+2. The PR turns purple and says **Merged**. Click **Delete branch**. The work is safe in `main`.
+3. Bring the merge into your own copy, and delete the local branches.
+
+   ```bash
+   git switch main
+   git pull
+   git branch -d feat/greeting feat/shout
+   ```
+
+*You should see:* `git pull` downloads the merge commit and updates `main`. `git branch` then lists
+only `main`. On GitHub, the *Pull requests* tab, under *Closed*, shows your PR with the purple Merged
+icon.
+
+**Checkpoint 6**
+
+- [ ] The PR says **Merged** and carries three or more Conventional Commits.
+- [ ] Your local `main` is up to date and `npm start` prints your greeting.
+
 ## Check your understanding
 
 Answer each one in your head, then compare.
@@ -408,6 +693,19 @@ Answer each one in your head, then compare.
 **What does `git status` tell you?**
 Which files are changed but not staged, which are staged for the next commit, and which are new and
 untracked. Use it whenever you are unsure what state you are in.
+
+**Why make a branch instead of committing straight to `main`?**
+`main` stays working while you try a change. The change is reviewed in a pull request, and it only
+reaches `main` when you merge it.
+
+**What is the difference between merge and rebase?**
+Merge joins two histories and keeps what happened, with a merge commit. Rebase replays your commits
+on top of another branch to make a straight line, which rewrites them. This course only uses merge.
+
+**What is a merge conflict, and what do the `<<<<<<<`, `=======` and `>>>>>>>` lines mean?**
+A conflict happens when two branches change the same lines and Git cannot choose. The markers fence
+the two versions: yours above `=======` and the other branch's below. You edit the file to what you
+want, delete the markers, then `git add .` and commit.
 
 **Why is `.env.example` committed but `.env` is in `.gitignore`?**
 The example shows what settings the project expects, with no real values. The real `.env` holds
@@ -452,6 +750,25 @@ Adding a file to `.gitignore` doesn't remove it once it was committed. Run
 `git rm --cached file-name` (add `-r` for a folder), commit, and push. If it held a secret, treat
 the secret as leaked and replace it.
 
+**There is no yellow "Compare & pull request" banner**
+The branch isn't on GitHub yet, or the banner expired. Run `git push -u origin feat/greeting`, then
+use *Pull requests → New pull request* and pick your branch under *compare*.
+
+**Git says "You have unmerged paths" or I'm stuck in the middle of a merge**
+You started `git merge` and a conflict is still open. Fix `src/hello.js` as in step 4.4, then
+`git add .` and commit. To give up and start the merge again, run `git merge --abort`.
+
+**I committed with the conflict markers still in the file**
+Open `src/hello.js`, delete the marker lines, then run `git add .`,
+`git commit -m "fix: remove conflict markers"` and `git push`.
+
+**`git merge main` says "Already up to date"**
+Step 4.3 didn't reach `main`. Check that you ran `git merge feat/shout` and `git push` while on `main`, then try again.
+
+**I clicked *Squash and merge* or *Rebase and merge*, and the PR shows one commit**
+It can't be undone on GitHub. Make a new branch, make three Conventional Commits and open a new PR,
+then use the plain *Merge pull request* button.
+
 **A warning about "LF will be replaced by CRLF" on Windows**
 It's harmless. Git is adjusting line endings between Windows and the repo. Ignore it.
 
@@ -460,9 +777,11 @@ It's harmless. Git is adjusting line endings between Windows and the repo. Ignor
 - [ ] Git, Node.js 24 and the GitHub CLI work from your terminal.
 - [ ] A **public** `node-js-training` repo on GitHub shows your files.
 - [ ] `npm start` prints your hello message.
-- [ ] The repo has at least two commits.
+- [ ] A pull request on the repo is **merged** and carries three or more Conventional Commits.
 - [ ] `.gitignore` and `.env.example` are in the repo, and no `.env` is.
 - [ ] You can say what `git add`, `git commit` and `git push` each do.
+- [ ] `git log --oneline --graph` shows a resolved merge conflict.
+- [ ] You can say what a branch, a pull request and a merge conflict are.
 
 Keep this repo. You build the rest of the course in it.
 
