@@ -785,4 +785,4 @@ It's harmless. Git is adjusting line endings between Windows and the repo. Ignor
 
 Keep this repo. You build the rest of the course in it.
 
-Next: M02, Modern JavaScript & Async/Await (coming soon).
+Next: [M02, Modern JavaScript & Async/Await](../m02-modern-javascript-async-await/index.md).
