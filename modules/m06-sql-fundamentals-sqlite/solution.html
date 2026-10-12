@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M06 — Solution: the 24 query exercises</title>
+  <meta name="description" content="The answers to the 24 SQL exercises in the M06 module, with the result of each query and why it works.">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <a class="back" href="../../index.html">&larr; All modules</a>
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#overview">Before you read</a></li>
+        <li><a href="#s1">1. Filtering</a></li>
+        <li><a href="#s2">2. Sorting and pagination</a></li>
+        <li><a href="#s3">3. Joins</a></li>
+        <li><a href="#s4">4. Aggregates and HAVING</a></li>
+        <li><a href="#s5">5. Subqueries</a></li>
+        <li><a href="#s6">6. Common mistakes</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Module M06 · Solution for the section 5 exercises</p>
+        <h1>Solution: the 24 query exercises</h1>
+        <p class="lede">Every answer to the exercise set, the result you should get, and the reason each query is written that way. Try the exercises first, because you learn most from the ones you work out yourself.</p>
+      </header>
+
+      <section id="overview">
+        <h2>Before you read</h2>
+        <div class="callout warn">
+          <p class="callout-title">Try the exercises first</p>
+          <p>This page has every answer. Go back to <a href="index.html#s5">section 5</a> and try each exercise before you look. If a query is wrong, <code>npm run sql:check</code> tells you which exercise failed. Come here when you are stuck, or when everything passes and you want to compare your queries with these.</p>
+        </div>
+        <p>Your query does not have to match mine word for word. It passes if it returns the same rows, in the same order, with the same columns in the same order. There are often several correct ways to write one. The results below come from the seed data in <code>sql/seed.sql</code>, run on the SQLite command line with <code>.headers on</code> and <code>.mode column</code>.</p>
+      </section>
+
+      <section id="s1">
+        <h2><span class="num">1.</span>Filtering</h2>
+        <h3>Exercise 01</h3>
+        <p>List the id and title of every task whose status is <code>todo</code>.</p>
+        <pre><code>SELECT id, title
+FROM tasks
+WHERE status = 'todo'
+ORDER BY id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id         title
+--  --------------------
+ 5  Fix login redirect
+ 7  Write API docs
+ 8  Fix date bug
+ 9  Add tag filter
+12  Update README
+13  Plan next sprint
+15  Back up the database</code></pre>
+        </div>
+        <p><code>WHERE</code> keeps the rows where the condition is true. Text values go in single quotes.</p>
+        <h3>Exercise 02</h3>
+        <p>List the id and title of every task whose title contains the word <code>page</code>.</p>
+        <pre><code>SELECT id, title
+FROM tasks
+WHERE title LIKE '%page%'
+ORDER BY id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id          title
+--  ---------------------
+ 4  Build login page
+14  Fix typo on home page</code></pre>
+        </div>
+        <p><code>LIKE</code> matches patterns, and <code>%</code> stands for any run of characters. <code>%page%</code> means "contains page" (<code>LIKE</code> ignores case for plain letters in SQLite).</p>
+        <h3>Exercise 03</h3>
+        <p>List the id and title of every task that has no description.</p>
+        <pre><code>SELECT id, title
+FROM tasks
+WHERE description IS NULL
+ORDER BY id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id          title
+--  ----------------------
+ 3  Write seed data
+ 6  Add task list endpoint
+10  Review pull requests
+12  Update README
+14  Fix typo on home page</code></pre>
+        </div>
+        <p>A missing value is <code>NULL</code>, and you cannot test it with <code>=</code>. Use <code>IS NULL</code>.</p>
+        <h3>Exercise 04</h3>
+        <p>List the id and title of every task that is not <code>done</code> and was created on or after <code>2026-10-05</code>.</p>
+        <pre><code>SELECT id, title
+FROM tasks
+WHERE status &lt;&gt; 'done' AND created_at &gt;= '2026-10-05'
+ORDER BY id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id         title
+--  --------------------
+ 9  Add tag filter
+11  Speed up search
+12  Update README
+13  Plan next sprint
+15  Back up the database</code></pre>
+        </div>
+        <p><code>&lt;&gt;</code> means "not equal". The two conditions are joined with <code>AND</code>, so both must hold. Dates stored as <code>YYYY-MM-DD HH:MM:SS</code> text sort and compare correctly as text.</p>
+        <h3>Exercise 05</h3>
+        <p>List the id, title and status of tasks that are <code>todo</code> or <code>in_progress</code> and owned by user 3 or user 4.</p>
+        <pre><code>SELECT id, title, status
+FROM tasks
+WHERE status IN ('todo', 'in_progress') AND user_id IN (3, 4)
+ORDER BY id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id        title           status
+--  ------------------  -----------
+ 4  Build login page    in_progress
+ 5  Fix login redirect  todo
+ 8  Fix date bug        todo
+11  Speed up search     in_progress</code></pre>
+        </div>
+        <p><code>IN (...)</code> is a short way to write several <code>OR</code> tests. <code>AND</code> binds both groups: the status test and the owner test.</p>
+      </section>
+
+      <section id="s2">
+        <h2><span class="num">2.</span>Sorting and pagination</h2>
+        <h3>Exercise 06</h3>
+        <p>List the id and title of the 3 newest tasks, newest first.</p>
+        <pre><code>SELECT id, title
+FROM tasks
+ORDER BY created_at DESC, id DESC
+LIMIT 3;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id          title
+--  ---------------------
+15  Back up the database
+14  Fix typo on home page
+13  Plan next sprint</code></pre>
+        </div>
+        <p>Sort newest first with <code>DESC</code>, and <code>LIMIT 3</code> keeps the first three rows. The second sort key, <code>id</code>, decides ties.</p>
+        <h3>Exercise 07</h3>
+        <p>Page 2 of the tasks, sorted by id, with 5 tasks per page.</p>
+        <pre><code>SELECT id, title
+FROM tasks
+ORDER BY id
+LIMIT 5 OFFSET 5;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id          title
+--  ----------------------
+ 6  Add task list endpoint
+ 7  Write API docs
+ 8  Fix date bug
+ 9  Add tag filter
+10  Review pull requests</code></pre>
+        </div>
+        <p><code>LIMIT 5 OFFSET 5</code> skips the first 5 rows and returns the next 5. Page number <code>p</code> with size <code>s</code> is <code>OFFSET (p - 1) * s</code>.</p>
+        <h3>Exercise 08</h3>
+        <p>Keyset pagination: the next 4 tasks after the task with id 9, sorted by id. Do not use <code>OFFSET</code>.</p>
+        <pre><code>SELECT id, title
+FROM tasks
+WHERE id &gt; 9
+ORDER BY id
+LIMIT 4;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id         title
+--  --------------------
+10  Review pull requests
+11  Speed up search
+12  Update README
+13  Plan next sprint</code></pre>
+        </div>
+        <p>Keyset pagination remembers the last id you saw and asks for rows after it. It stays fast on big tables, because the database does not count past skipped rows, and it stays correct when rows are added while you page.</p>
+      </section>
+
+      <section id="s3">
+        <h2><span class="num">3.</span>Joins</h2>
+        <h3>Exercise 10</h3>
+        <p>List each task's title with its owner's name. Leave out tasks that have no owner (an <code>INNER JOIN</code>).</p>
+        <pre><code>SELECT t.title, u.name
+FROM tasks AS t
+INNER JOIN users AS u ON u.id = t.user_id
+ORDER BY t.id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>        title           name
+----------------------  ----
+Set up project          Ana
+Design schema           Ana
+Write seed data         Ben
+Build login page        Cara
+Fix login redirect      Cara
+...
+(13 rows in total; the first 5 are shown)</code></pre>
+        </div>
+        <p><code>INNER JOIN</code> keeps a task only if a matching user exists, so the two tasks with <code>user_id</code> of <code>NULL</code> disappear (13 rows, not 15).</p>
+        <h3>Exercise 11</h3>
+        <p>List each task's title with its owner's name, and keep the tasks that have no owner (their name is <code>NULL</code>). Use a <code>LEFT JOIN</code>.</p>
+        <pre><code>SELECT t.title, u.name
+FROM tasks AS t
+LEFT JOIN users AS u ON u.id = t.user_id
+ORDER BY t.id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>        title           name
+----------------------  ----
+Set up project          Ana
+Design schema           Ana
+Write seed data         Ben
+Build login page        Cara
+Fix login redirect      Cara
+...
+(15 rows in total; the first 5 are shown)</code></pre>
+        </div>
+        <p><code>LEFT JOIN</code> keeps every row from the left table (<code>tasks</code>) and fills the right side with <code>NULL</code> when nothing matches.</p>
+        <h3>Exercise 12</h3>
+        <p>List the names of users who own no tasks.</p>
+        <pre><code>SELECT u.name
+FROM users AS u
+LEFT JOIN tasks AS t ON t.user_id = u.id
+WHERE t.id IS NULL
+ORDER BY u.name;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>name
+----
+Eli</code></pre>
+        </div>
+        <p>The <code>LEFT JOIN</code> gives a user with no tasks one row where every <code>tasks</code> column is <code>NULL</code>. <code>WHERE t.id IS NULL</code> keeps exactly those rows.</p>
+        <h3>Exercise 13</h3>
+        <p>List every task-and-tag pair: the task title and the tag name.</p>
+        <pre><code>SELECT t.title, g.name AS tag
+FROM tasks AS t
+JOIN task_tags AS tt ON tt.task_id = t.id
+JOIN tags AS g ON g.id = tt.tag_id
+ORDER BY t.id, g.name;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>        title             tag
+----------------------  --------
+Set up project          backend
+Design schema           backend
+Design schema           feature
+Write seed data         backend
+Build login page        feature
+...
+(23 rows in total; the first 5 are shown)</code></pre>
+        </div>
+        <p>Two joins walk the many-to-many link: tasks to <code>task_tags</code>, then <code>task_tags</code> to tags. Each pair becomes one row, so a task with 3 tags appears 3 times.</p>
+        <h3>Exercise 14</h3>
+        <p>List the id and title of every task tagged <code>bug</code>.</p>
+        <pre><code>SELECT t.id, t.title
+FROM tasks AS t
+JOIN task_tags AS tt ON tt.task_id = t.id
+JOIN tags AS g ON g.id = tt.tag_id
+WHERE g.name = 'bug'
+ORDER BY t.id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id          title
+--  ---------------------
+ 5  Fix login redirect
+ 8  Fix date bug
+14  Fix typo on home page</code></pre>
+        </div>
+        <p>The same two joins, with a <code>WHERE</code> on the tag name to pick one tag.</p>
+        <h3>Exercise 15</h3>
+        <p>List the names of tags that no task uses.</p>
+        <pre><code>SELECT g.name
+FROM tags AS g
+LEFT JOIN task_tags AS tt ON tt.tag_id = g.id
+WHERE tt.task_id IS NULL
+ORDER BY g.name;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>name
+-----
+ideas</code></pre>
+        </div>
+        <p>The same trick as exercise 12, applied to tags: a tag with no <code>task_tags</code> row has <code>NULL</code> on the right side.</p>
+      </section>
+
+      <section id="s4">
+        <h2><span class="num">4.</span>Aggregates and HAVING</h2>
+        <h3>Exercise 09</h3>
+        <p>List the title and the number of tags of every task that has 3 or more tags.</p>
+        <pre><code>SELECT t.title, COUNT(*) AS tag_count
+FROM tasks AS t
+JOIN task_tags AS tt ON tt.task_id = t.id
+GROUP BY t.id
+HAVING COUNT(*) &gt;= 3
+ORDER BY t.title;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>        title          tag_count
+---------------------  ---------
+Fix login redirect             3
+Fix typo on home page          3</code></pre>
+        </div>
+        <p>Join to the junction table, <code>GROUP BY</code> the task, and keep groups with <code>HAVING</code>. <code>HAVING</code> filters groups after counting, and <code>WHERE</code> filters rows before.</p>
+        <h3>Exercise 16</h3>
+        <p>Count the tasks in each status.</p>
+        <pre><code>SELECT status, COUNT(*) AS total
+FROM tasks
+GROUP BY status
+ORDER BY status;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>  status     total
+-----------  -----
+done             5
+in_progress      3
+todo             7</code></pre>
+        </div>
+        <p><code>GROUP BY status</code> makes one group per status, and <code>COUNT(*)</code> counts the rows in each group.</p>
+        <h3>Exercise 17</h3>
+        <p>List every user's name and how many tasks they own. Users with no tasks show 0.</p>
+        <pre><code>SELECT u.name, COUNT(t.id) AS total
+FROM users AS u
+LEFT JOIN tasks AS t ON t.user_id = u.id
+GROUP BY u.id
+ORDER BY u.name;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>name  total
+----  -----
+Ana       4
+Ben       3
+Cara      3
+Dev       3
+Eli       0</code></pre>
+        </div>
+        <p>Use <code>COUNT(t.id)</code>, not <code>COUNT(*)</code>: a user with no tasks still has one joined row, but <code>t.id</code> is <code>NULL</code> there and <code>COUNT(column)</code> skips <code>NULL</code>, so you get 0.</p>
+        <h3>Exercise 18</h3>
+        <p>List the names of users who own more than 3 tasks.</p>
+        <pre><code>SELECT u.name
+FROM users AS u
+JOIN tasks AS t ON t.user_id = u.id
+GROUP BY u.id
+HAVING COUNT(*) &gt; 3
+ORDER BY u.name;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>name
+----
+Ana</code></pre>
+        </div>
+        <p><code>HAVING COUNT(*) &gt; 3</code> keeps only the groups with more than 3 rows. Only Ana has 4 tasks.</p>
+        <h3>Exercise 19</h3>
+        <p>List the 3 most-used tags and how many tasks use each. Break ties by tag name.</p>
+        <pre><code>SELECT g.name, COUNT(*) AS total
+FROM tags AS g
+JOIN task_tags AS tt ON tt.tag_id = g.id
+GROUP BY g.id
+ORDER BY total DESC, g.name
+LIMIT 3;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>  name    total
+--------  -----
+backend       7
+feature       4
+frontend      4</code></pre>
+        </div>
+        <p>Count per tag, sort by the count descending, and use the name as a tie-breaker so the order is the same every time.</p>
+        <h3>Exercise 20</h3>
+        <p>For each user who has at least one <code>done</code> task, list the name and how many <code>done</code> tasks they have.</p>
+        <pre><code>SELECT u.name, COUNT(*) AS done_total
+FROM users AS u
+JOIN tasks AS t ON t.user_id = u.id
+WHERE t.status = 'done'
+GROUP BY u.id
+ORDER BY u.name;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>name  done_total
+----  ----------
+Ana            2
+Ben            1
+Cara           1
+Dev            1</code></pre>
+        </div>
+        <p><code>WHERE</code> removes the non-done rows before grouping, so users with no done tasks have no group at all.</p>
+        <h3>Exercise 21</h3>
+        <p>Find the earliest and the latest <code>created_at</code> among all tasks (one row).</p>
+        <pre><code>SELECT MIN(created_at) AS first_created, MAX(created_at) AS last_created
+FROM tasks;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>   first_created        last_created
+-------------------  -------------------
+2026-10-01 09:00:00  2026-10-08 08:00:00</code></pre>
+        </div>
+        <p><code>MIN</code> and <code>MAX</code> work on text too. With no <code>GROUP BY</code>, all the rows form one group, so you get one row.</p>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>Subqueries</h2>
+        <h3>Exercise 22</h3>
+        <p>List the title of every task owned by the user who owns the most tasks. Use a subquery, and do not hard-code the user.</p>
+        <pre><code>SELECT title
+FROM tasks
+WHERE user_id = (
+  SELECT user_id
+  FROM tasks
+  WHERE user_id IS NOT NULL
+  GROUP BY user_id
+  ORDER BY COUNT(*) DESC
+  LIMIT 1
+)
+ORDER BY id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>    title
+--------------
+Set up project
+Design schema
+Write API docs
+Update README</code></pre>
+        </div>
+        <p>The inner query finds the user id with the highest count, and the outer query uses it. Nothing is hard-coded, so the answer follows the data. The <code>IS NOT NULL</code> filter stops unassigned tasks from counting as a "user".</p>
+        <h3>Exercise 23</h3>
+        <p>List the id and title of every task that has no tags. Use <code>NOT EXISTS</code> or <code>NOT IN</code>.</p>
+        <pre><code>SELECT id, title
+FROM tasks AS t
+WHERE NOT EXISTS (SELECT 1 FROM task_tags AS tt WHERE tt.task_id = t.id)
+ORDER BY id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id         title
+--  --------------------
+10  Review pull requests
+13  Plan next sprint</code></pre>
+        </div>
+        <p><code>NOT EXISTS</code> asks whether the inner query finds any row for this task, and keeps the task when it finds none. (<code>NOT IN</code> also works, but gives wrong answers if the subquery can return <code>NULL</code>.)</p>
+        <h3>Exercise 24</h3>
+        <p>List the names of users who own at least one <code>done</code> task, using an <code>IN</code> subquery.</p>
+        <pre><code>SELECT name
+FROM users
+WHERE id IN (SELECT user_id FROM tasks WHERE status = 'done')
+ORDER BY name;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>name
+----
+Ana
+Ben
+Cara
+Dev</code></pre>
+        </div>
+        <p>The inner query returns the user ids that have a done task, and <code>IN</code> keeps the users whose id is in that list. A user with two done tasks is still listed once.</p>
+      </section>
+
+      <section id="s6">
+        <h2><span class="num">6.</span>Common mistakes</h2>
+        <h3>Testing for NULL with =</h3>
+        <pre><code>SELECT id, title FROM tasks WHERE description = NULL;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>(no rows)</code></pre>
+          <p>No rows, and no error. <code>NULL</code> means "unknown", and nothing equals unknown, not even <code>NULL</code>. Write <code>IS NULL</code>.</p>
+        </div>
+        <h3>Forgetting the join condition</h3>
+        <pre><code>SELECT COUNT(*) AS rows_returned FROM tasks, users;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>rows_returned
+-------------
+           75</code></pre>
+          <p>15 tasks times 5 users is 75 rows: every task paired with every user. A join without an <code>ON</code> condition is a cross join. If a result is far bigger than you expect, check the <code>ON</code>.</p>
+        </div>
+        <h3>Filtering the right table of a LEFT JOIN in WHERE</h3>
+        <pre><code>SELECT COUNT(*) AS rows_returned
+FROM tasks AS t
+LEFT JOIN users AS u ON u.id = t.user_id
+WHERE u.name = 'Ana';</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>rows_returned
+-------------
+            4</code></pre>
+          <p>Only Ana's tasks come back. The <code>WHERE</code> throws away the rows where <code>u.name</code> is <code>NULL</code>, so the unassigned tasks that the <code>LEFT JOIN</code> kept are gone again, and the query behaves like an <code>INNER JOIN</code>. To keep them, put the condition in the <code>ON</code> clause, or test <code>u.name IS NULL OR ...</code>.</p>
+        </div>
+        <h3>Using WHERE where you need HAVING</h3>
+        <p><code>WHERE</code> runs before the groups exist, so it cannot see <code>COUNT(*)</code>. Use <code>WHERE</code> for conditions on single rows and <code>HAVING</code> for conditions on groups, as in exercises 9 and 18.</p>
+      </section>
+
+<nav class="pager" aria-label="Module navigation">
+        <a href="index.html#s5">&larr; Back to the exercises</a>
+        <a href="index.html#s6">Next: 6. Indexes, EXPLAIN QUERY PLAN and transactions &rarr;</a>
+      </nav>
+    </main>
+  </div>
+</body>
+</html>

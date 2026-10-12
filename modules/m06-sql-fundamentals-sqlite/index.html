@@ -1,0 +1,1187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M06 — SQL Fundamentals with SQLite</title>
+  <meta name="description" content="Design a relational schema for the Task API, create and seed it in SQLite, answer 24 graded query exercises, see indexes and transactions work, and demonstrate SQL injection and its fix, in your node-js-training project.">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <a class="back" href="../../index.html">&larr; All modules</a>
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#overview">Overview &amp; time plan</a></li>
+        <li><a href="#s1">1. The relational model, SQLite and the schema design</a></li>
+        <li><a href="#s2">2. Create and seed the database</a></li>
+        <li><a href="#s3">3. Reading and changing data</a></li>
+        <li><a href="#s4">4. Joins, aggregates and subqueries</a></li>
+        <li><a href="#s5">5. Exercise set: 24 graded queries</a></li>
+        <li><a href="#s6">6. Indexes, EXPLAIN QUERY PLAN and transactions</a></li>
+        <li><a href="#s7">7. SQL injection and the parameterised fix</a></li>
+        <li><a href="#s8">8. The Mermaid ERD</a></li>
+        <li><a href="#check">Check your understanding</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#done">You're done when</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Module M06 · Week 3 · Days 1-2 · about 3 hours</p>
+        <h1>SQL Fundamentals with SQLite</h1>
+        <p class="lede">Design the database behind the Task API, write the SQL yourself before an ORM hides it, check your work with 24 graded query exercises, and see a SQL injection attack succeed and then fail.</p>
+      </header>
+
+      <section id="overview">
+        <h2>Overview &amp; time plan</h2>
+        <p><strong>Builds on:</strong> M05. You need the <code>node-js-training</code> repo with TypeScript set up (<code>npm run typecheck</code> is clean), and Node.js 24. Everything you write here goes into that same repo, on <code>main</code>, with the add, commit and push steps you know. This module does not change the Task API. (The word "module" on this page means the course lessons, M01 to M10.)</p>
+        <p>The Task API from M05 keeps its tasks in memory, so they vanish when the server stops. A real API keeps them in a <strong>database</strong>. In M07 you will use <strong>Prisma</strong>, a tool that writes the SQL for you. To use a tool like that well, and to find out why a query is slow or wrong, you need to know the SQL underneath. So this module comes first: you write the SQL yourself.</p>
+        <p>You will:</p>
+        <ul>
+          <li>design a small <strong>relational schema</strong>: <code>users</code>, <code>tasks</code>, <code>tags</code> and <code>task_tags</code>, the data the Task API needs;</li>
+          <li>create and fill it in <strong>SQLite</strong>, a database that lives in one file and needs no server;</li>
+          <li>answer <strong>24 graded query exercises</strong> (filtering, sorting, pagination, joins, aggregates, subqueries), and a script marks your answers;</li>
+          <li>see an <strong>index</strong> change a query plan, and a <strong>transaction</strong> undo changes;</li>
+          <li>attack a query with <strong>SQL injection</strong>, then block the attack with parameters;</li>
+          <li>draw the schema as a <strong>Mermaid diagram</strong> in your README.</li>
+        </ul>
+        <ol class="plan">
+          <li><a href="#s1">The relational model, SQLite and the schema design</a> <span class="time">25 min</span></li>
+          <li><a href="#s2">Create and seed the database</a> <span class="time">20 min</span></li>
+          <li><a href="#s3">Reading and changing data</a> <span class="time">20 min</span></li>
+          <li><a href="#s4">Joins, aggregates and subqueries</a> <span class="time">25 min</span></li>
+          <li><a href="#s5">Exercise set: 24 graded queries</a> <span class="time">40 min</span></li>
+          <li><a href="#s6">Indexes, EXPLAIN QUERY PLAN and transactions</a> <span class="time">20 min</span></li>
+          <li><a href="#s7">SQL injection and the parameterised fix</a> <span class="time">15 min</span></li>
+          <li><a href="#s8">The Mermaid ERD</a> <span class="time">10 min</span></li>
+          <li><a href="#check">Check your understanding</a> <span class="time">5 min</span></li>
+        </ol>
+        <p>This page moves quickly. Type the SQL in sections 1 to 4 yourself where you can. The seed data (section 2) and the checker script (section 5) you may paste. Run every step, and compare with the <em>You should see</em> box. A note on versions: the outputs here come from SQLite 3.54 on Linux. An older SQLite prints the same results, but its tables and error messages can be laid out a little differently. If anything else differs, check <a href="#troubleshooting">Troubleshooting</a>.</p>
+      </section>
+
+      <section id="s1">
+        <h2><span class="num">1.</span>The relational model, SQLite and the schema design <span class="time">25 min</span></h2>
+        <h3>1.1 Tables, keys and relationships</h3>
+        <p>A <strong>relational database</strong> keeps data in <strong>tables</strong>. A table has <strong>columns</strong> (the fields) and <strong>rows</strong> (the records). Two kinds of key tie tables together:</p>
+        <ul>
+          <li>A <strong>primary key</strong> is a column (or columns) whose value is different in every row, so it names one row: <code>tasks.id</code>.</li>
+          <li>A <strong>foreign key</strong> is a column that holds the primary key of a row in another table, so it points to that row: <code>tasks.user_id</code> points to <code>users.id</code>. The database can refuse a value that points to nothing.</li>
+        </ul>
+        <p>There are three kinds of relationship between tables:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Relationship</th><th>Meaning</th><th>How it is stored</th><th>Example here</th></tr></thead>
+            <tbody>
+              <tr><td><strong>1:1</strong></td><td>One row matches at most one row in another table</td><td>A foreign key that is also <code>UNIQUE</code></td><td>A user and a profile (not used in this module)</td></tr>
+              <tr><td><strong>1:N</strong> (one to many)</td><td>One row matches many rows in another table</td><td>A foreign key on the "many" side</td><td>One user has many tasks: <code>tasks.user_id</code></td></tr>
+              <tr><td><strong>M:N</strong> (many to many)</td><td>Many rows match many rows</td><td>A <strong>junction table</strong> holding two foreign keys</td><td>A task has many tags, and a tag marks many tasks: <code>task_tags</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>An M:N relationship cannot live in either table: a task with three tags would need three tag columns, and a tag used by many tasks would need many task columns. The answer is a third table, the <strong>junction table</strong>, with one row for every (task, tag) pair. Its primary key is the <em>pair</em>, so the same tag cannot be added to the same task twice.</p>
+        <p><strong>Normalisation</strong> is the habit of storing each fact once. In short: every column holds one value (first normal form), every column depends on the whole key (second), and no column depends on another non-key column (third). In practice it means: do not store a user's name inside every task, store a <code>user_id</code> and look the name up. Then renaming a user changes one row.</p>
+        <h3>1.2 The schema you will build</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Table</th><th>Columns</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td><code>users</code></td><td><code>id</code>, <code>email</code>, <code>name</code>, <code>created_at</code></td><td><code>email</code> is unique</td></tr>
+              <tr><td><code>tasks</code></td><td><code>id</code>, <code>title</code>, <code>description</code>, <code>status</code>, <code>user_id</code>, <code>created_at</code>, <code>updated_at</code></td><td><code>status</code> is <code>todo</code>, <code>in_progress</code> or <code>done</code>. <code>user_id</code> may be empty: a task can be unassigned</td></tr>
+              <tr><td><code>tags</code></td><td><code>id</code>, <code>name</code></td><td><code>name</code> is unique</td></tr>
+              <tr><td><code>task_tags</code></td><td><code>task_id</code>, <code>tag_id</code></td><td>The junction table. Its primary key is the pair</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><code>tasks</code> has the same fields as the Task type from M04, plus the owner. The relationships are: one user has many tasks (1:N), and tasks and tags are many to many through <code>task_tags</code>.</p>
+        <h3>1.3 Install the sqlite3 command line</h3>
+        <p><strong>SQLite</strong> is a database in a single file. There is no server to start: a program opens the file and reads it. You will use its command-line shell, <code>sqlite3</code>. (A free graphical tool, DB Browser for SQLite, does the same job. This page uses the command line, so that every step is a command you can copy.)</p>
+        <div class="tabs">
+          <input type="radio" name="os-sql" id="sql-win" checked><label for="sql-win">Windows</label>
+          <input type="radio" name="os-sql" id="sql-mac"><label for="sql-mac">macOS</label>
+          <input type="radio" name="os-sql" id="sql-linux"><label for="sql-linux">Linux</label>
+          <div class="tab-panel panel-win">
+            <p>Open a new Git Bash window and check whether it is already installed:</p>
+            <pre><code>sqlite3 --version</code></pre>
+            <p>If you get <code>command not found</code>, install it with the Windows package manager and open a <strong>new</strong> terminal afterwards:</p>
+            <pre><code>winget install SQLite.SQLite</code></pre>
+            <p>If <code>winget</code> does not find it, download <strong>sqlite-tools-win-x64</strong> from <a href="https://www.sqlite.org/download.html">sqlite.org/download.html</a>, unzip it somewhere, and add that folder to your <code>PATH</code>.</p>
+          </div>
+          <div class="tab-panel panel-mac">
+            <p>macOS comes with <code>sqlite3</code>. Check it:</p>
+            <pre><code>sqlite3 --version</code></pre>
+            <p>If you want a newer one: <code>brew install sqlite</code>.</p>
+          </div>
+          <div class="tab-panel panel-linux">
+            <p>Check whether it is installed:</p>
+            <pre><code>sqlite3 --version</code></pre>
+            <p>If not, for Debian and Ubuntu:</p>
+            <pre><code>sudo apt install sqlite3</code></pre>
+            <p>For Fedora: <code>sudo dnf install sqlite</code>.</p>
+          </div>
+        </div>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>3.54.0 2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcd5e3 (64-bit)</code></pre>
+          <p>Your version number and hash will differ. Any <code>3.x</code> is fine. The install commands for the three operating systems were not run for this page, so if one fails, use the download from sqlite.org.</p>
+        </div>
+        <h3>1.4 Open a database</h3>
+        <p>The database file will live in <code>data/</code>, which is already in your <code>.gitignore</code> (from M03), so the file is never committed. The SQL that builds it is what you commit. Create the folders, and open a database:</p>
+        <pre><code>mkdir -p data sql
+sqlite3 data/tasks.db</code></pre>
+        <p>You are now at the <code>sqlite&gt;</code> prompt. Two kinds of line work there:</p>
+        <ul>
+          <li><strong>SQL statements</strong> end with a semicolon: <code>SELECT 1;</code></li>
+          <li><strong>Dot-commands</strong> start with a dot and have no semicolon: they control the shell.</li>
+        </ul>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Dot-command</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>.help</code></td><td>Lists the dot-commands</td></tr>
+              <tr><td><code>.headers on</code></td><td>Shows column names above query results</td></tr>
+              <tr><td><code>.mode column</code></td><td>Lines the columns up in a table</td></tr>
+              <tr><td><code>.tables</code></td><td>Lists the tables</td></tr>
+              <tr><td><code>.read file.sql</code></td><td>Runs the SQL in a file</td></tr>
+              <tr><td><code>.quit</code></td><td>Leaves the shell (or press <code>Ctrl+D</code>)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Try three things:</p>
+        <pre><code>.headers on
+.mode column
+SELECT typeof(1) AS a, typeof(1.5) AS b, typeof('x') AS c, typeof(NULL) AS d;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>   a      b     c     d
+-------  ----  ----  ----
+integer  real  text  null</code></pre>
+        </div>
+        <h3>1.5 Two things that are special about SQLite</h3>
+        <p><strong>Types are flexible.</strong> Most databases refuse text in a number column. SQLite gives each column a <em>type affinity</em>: it tries to convert the value to the column's type, and keeps it as it is if it cannot.</p>
+        <pre><code>CREATE TEMP TABLE t (n INTEGER);
+INSERT INTO t VALUES ('42'), ('abc');
+SELECT n, typeof(n) FROM t;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code> n   typeof(n)
+---  ---------
+ 42  integer
+abc  text</code></pre>
+          <p>The text <code>'42'</code> became the integer 42, and <code>'abc'</code> stayed text, and SQLite accepted both. So add <code>CHECK</code> constraints when a column must hold only certain values, as the schema in section 2 does.</p>
+        </div>
+        <p><strong>Foreign keys are off by default.</strong> SQLite only enforces them when you turn them on, <strong>for every connection</strong>, with <code>PRAGMA foreign_keys = ON;</code>. Check it, then leave the shell:</p>
+        <pre><code>PRAGMA foreign_keys;
+.quit</code></pre>
+        <p>It prints <code>0</code>, which means off. That is why every SQL file in this module starts with the pragma line.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 1</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c1-1"><label for="c1-1"><code>sqlite3 --version</code> works, and you opened <code>data/tasks.db</code> and ran a statement.</label></li>
+            <li><input type="checkbox" id="c1-2"><label for="c1-2">You can say the difference between a primary key and a foreign key.</label></li>
+            <li><input type="checkbox" id="c1-3"><label for="c1-3">You can say why <code>task_tags</code> exists, and what its primary key is.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s2">
+        <h2><span class="num">2.</span>Create and seed the database <span class="time">20 min</span></h2>
+        <h3>2.1 The schema in SQL</h3>
+        <p><strong>DDL</strong> (data definition language) is the SQL that creates and changes tables: <code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>. Create <code>sql/schema.sql</code>:</p>
+        <pre><code>-- Foreign keys are off by default in SQLite. Turn them on for every connection.
+PRAGMA foreign_keys = ON;
+
+-- Drop in this order, children first, so you can re-run this file any time
+DROP TABLE IF EXISTS task_tags;
+DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS tags;
+DROP TABLE IF EXISTS users;
+
+CREATE TABLE users (
+  id         INTEGER PRIMARY KEY,
+  email      TEXT NOT NULL UNIQUE,
+  name       TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE tasks (
+  id          INTEGER PRIMARY KEY,
+  title       TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 100),
+  description TEXT,
+  status      TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done')),
+  user_id     INTEGER REFERENCES users (id) ON DELETE SET NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE tags (
+  id   INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE
+);
+
+-- The junction table: one row per (task, tag) pair
+CREATE TABLE task_tags (
+  task_id INTEGER NOT NULL REFERENCES tasks (id) ON DELETE CASCADE,
+  tag_id  INTEGER NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
+  PRIMARY KEY (task_id, tag_id)
+);</code></pre>
+        <p>How the constraints work:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Constraint</th><th>What it does here</th></tr></thead>
+            <tbody>
+              <tr><td><code>PRIMARY KEY</code></td><td>The row's identity. In SQLite, an <code>INTEGER PRIMARY KEY</code> fills itself in with the next number when you leave it out</td></tr>
+              <tr><td><code>NOT NULL</code></td><td>The column must have a value</td></tr>
+              <tr><td><code>UNIQUE</code></td><td>No two rows may have the same value (<code>users.email</code>, <code>tags.name</code>)</td></tr>
+              <tr><td><code>CHECK (...)</code></td><td>The value must pass a test: <code>status</code> can only be one of three words, <code>title</code> must be 1 to 100 characters</td></tr>
+              <tr><td><code>DEFAULT</code></td><td>The value used when you do not give one</td></tr>
+              <tr><td><code>REFERENCES ... ON DELETE</code></td><td>A foreign key, and what to do with this row when the row it points to is deleted. <code>SET NULL</code> empties the column, and <code>CASCADE</code> deletes this row too</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Two design choices to notice. A task's <code>user_id</code> may be empty and uses <code>ON DELETE SET NULL</code>: deleting a user leaves their tasks behind, unassigned. The rows in <code>task_tags</code> use <code>ON DELETE CASCADE</code>: a link between a task and a tag means nothing once either one is gone. The <code>DROP TABLE IF EXISTS</code> lines come first, children before parents, so you can run the file again whenever you want a fresh start.</p>
+        <h3>2.2 The seed data</h3>
+        <p><strong>DML</strong> (data manipulation language) is the SQL that works with rows: <code>INSERT</code>, <code>SELECT</code>, <code>UPDATE</code>, <code>DELETE</code>. Create <code>sql/seed.sql</code>. It is long and repetitive, so paste it. The data is fixed on purpose, so everyone's query results match:</p>
+        <pre><code>PRAGMA foreign_keys = ON;
+
+INSERT INTO users (id, email, name, created_at) VALUES
+  (1, 'ana@example.com',  'Ana',  '2026-09-28 09:00:00'),
+  (2, 'ben@example.com',  'Ben',  '2026-09-28 09:05:00'),
+  (3, 'cara@example.com', 'Cara', '2026-09-29 10:00:00'),
+  (4, 'dev@example.com',  'Dev',  '2026-09-30 11:30:00'),
+  (5, 'eli@example.com',  'Eli',  '2026-10-01 08:15:00');
+
+INSERT INTO tasks (id, title, description, status, user_id, created_at, updated_at) VALUES
+  (1,  'Set up project',        'Create the repo',        'done',        1,    '2026-10-01 09:00:00', '2026-10-01 17:00:00'),
+  (2,  'Design schema',         'Tables and keys',        'done',        1,    '2026-10-01 10:30:00', '2026-10-02 12:00:00'),
+  (3,  'Write seed data',       NULL,                     'done',        2,    '2026-10-02 09:15:00', '2026-10-02 16:30:00'),
+  (4,  'Build login page',      'Email and password',     'in_progress', 3,    '2026-10-02 11:00:00', '2026-10-06 10:00:00'),
+  (5,  'Fix login redirect',    'Loops on Safari',        'todo',        3,    '2026-10-03 14:20:00', '2026-10-03 14:20:00'),
+  (6,  'Add task list endpoint', NULL,                    'in_progress', 2,    '2026-10-03 16:45:00', '2026-10-07 09:30:00'),
+  (7,  'Write API docs',        'Document every route',   'todo',        1,    '2026-10-04 08:30:00', '2026-10-04 08:30:00'),
+  (8,  'Fix date bug',          'Dates show as UTC',      'todo',        4,    '2026-10-04 13:10:00', '2026-10-04 13:10:00'),
+  (9,  'Add tag filter',        'Filter tasks by tag',    'todo',        2,    '2026-10-05 10:00:00', '2026-10-05 10:00:00'),
+  (10, 'Review pull requests',  NULL,                     'done',        4,    '2026-10-05 15:30:00', '2026-10-06 11:00:00'),
+  (11, 'Speed up search',       'Search takes 2 seconds', 'in_progress', 4,    '2026-10-06 09:45:00', '2026-10-08 10:15:00'),
+  (12, 'Update README',         NULL,                     'todo',        1,    '2026-10-06 12:00:00', '2026-10-06 12:00:00'),
+  (13, 'Plan next sprint',      'Pick the top tasks',     'todo',        NULL, '2026-10-07 09:00:00', '2026-10-07 09:00:00'),
+  (14, 'Fix typo on home page', NULL,                     'done',        3,    '2026-10-07 11:20:00', '2026-10-07 11:45:00'),
+  (15, 'Back up the database',  'Nightly copy',           'todo',        NULL, '2026-10-08 08:00:00', '2026-10-08 08:00:00');
+
+INSERT INTO tags (id, name) VALUES
+  (1, 'bug'), (2, 'feature'), (3, 'docs'), (4, 'urgent'),
+  (5, 'backend'), (6, 'frontend'), (7, 'ideas');
+
+INSERT INTO task_tags (task_id, tag_id) VALUES
+  (1, 5), (2, 5), (2, 2), (3, 5), (4, 2), (4, 6), (5, 1), (5, 6), (5, 4),
+  (6, 2), (6, 5), (7, 3), (8, 1), (8, 5), (9, 2), (9, 6), (11, 5), (11, 4),
+  (12, 3), (14, 1), (14, 6), (14, 3), (15, 5);</code></pre>
+        <p>It has 5 users, 15 tasks (two unassigned), 7 tags (one nobody uses) and 23 links. Eli owns no tasks, tasks 10 and 13 have no tags, and the tag <code>ideas</code> is unused. Those gaps are there for the join exercises.</p>
+        <h3>2.3 Build the database</h3>
+        <pre><code>sqlite3 data/tasks.db</code></pre>
+        <p>At the prompt, run the two files. <code>.read</code> runs the SQL inside a file:</p>
+        <pre><code>.read sql/schema.sql
+.read sql/seed.sql
+.tables
+.headers on
+.mode column
+SELECT 'users' AS "table", COUNT(*) AS rows FROM users
+UNION ALL SELECT 'tasks', COUNT(*) FROM tasks
+UNION ALL SELECT 'tags', COUNT(*) FROM tags
+UNION ALL SELECT 'task_tags', COUNT(*) FROM task_tags;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>tags     task_tags     tasks     users
+  table    rows
+---------  ----
+users         5
+tasks        15
+tags          7
+task_tags    23</code></pre>
+        </div>
+        <h3>2.4 Make the constraints say no</h3>
+        <p>Constraints are the database refusing bad data. Try four bad inserts, still at the prompt:</p>
+        <pre><code>PRAGMA foreign_keys = ON;
+INSERT INTO tasks (title, user_id) VALUES ('Orphan', 99);
+INSERT INTO tasks (title, status) VALUES ('Bad status', 'archived');
+INSERT INTO users (email, name) VALUES ('ana@example.com', 'Ana Two');
+INSERT INTO tasks (description) VALUES ('no title');</code></pre>
+        <p>Each one is refused, and the error message ends with the reason. They are, in order:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Statement</th><th>The error ends with</th></tr></thead>
+            <tbody>
+              <tr><td>A task owned by user 99, who does not exist</td><td><code>FOREIGN KEY constraint failed</code></td></tr>
+              <tr><td>A status of <code>archived</code></td><td><code>CHECK constraint failed: status IN ('todo', 'in_progress', 'done')</code></td></tr>
+              <tr><td>A second user with Ana's email</td><td><code>UNIQUE constraint failed: users.email</code></td></tr>
+              <tr><td>A task with no title</td><td><code>NOT NULL constraint failed: tasks.title</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Now see what happens <strong>without</strong> the pragma. Leave the shell with <code>.quit</code>, open it again with <code>sqlite3 data/tasks.db</code> (a new connection starts with foreign keys off), and run the first insert again:</p>
+        <pre><code>INSERT INTO tasks (title, user_id) VALUES ('Orphan', 99);
+SELECT id, title, user_id FROM tasks WHERE title = 'Orphan';</code></pre>
+        <p>This time it is accepted, and you have a task that points at a user who does not exist. Remove it by running the reset:</p>
+        <pre><code>.read sql/schema.sql
+.read sql/seed.sql</code></pre>
+        <p>The two files rebuild the database from nothing, so you can always get back to this clean state. (The error messages above are what SQLite 3.54 ends them with. The first part of the message, for example <code>Error:</code> or <code>Runtime error:</code>, depends on your version and on whether you type the statement or run it from a file.)</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 2</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c2-4"><label for="c2-4"><code>.tables</code> lists four tables, and the row counts are 5, 15, 7 and 23.</label></li>
+            <li><input type="checkbox" id="c2-5"><label for="c2-5">You saw all four constraints refuse a bad row.</label></li>
+            <li><input type="checkbox" id="c2-6"><label for="c2-6">You saw the orphan task accepted when foreign keys were off, and then reset the database.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add sqlite schema and seed data"
+git push</code></pre>
+      </section>
+
+      <section id="s3">
+        <h2><span class="num">3.</span>Reading and changing data <span class="time">20 min</span></h2>
+        <p>Open the database again (<code>sqlite3 data/tasks.db</code>) and set up the display. Do this in every session:</p>
+        <pre><code>PRAGMA foreign_keys = ON;
+.headers on
+.mode column</code></pre>
+        <h3>3.1 SELECT</h3>
+        <p><code>SELECT</code> reads rows. <code>FROM</code> says which table, <code>WHERE</code> filters rows, <code>ORDER BY</code> sorts them, and <code>LIMIT</code> and <code>OFFSET</code> pick a slice.</p>
+        <pre><code>SELECT id, title, status FROM tasks WHERE status = 'in_progress';
+SELECT id, title FROM tasks WHERE status = 'done' ORDER BY created_at DESC;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id          title             status
+--  ----------------------  -----------
+ 4  Build login page        in_progress
+ 6  Add task list endpoint  in_progress
+11  Speed up search         in_progress
+id          title
+--  ---------------------
+14  Fix typo on home page
+10  Review pull requests
+ 3  Write seed data
+ 2  Design schema
+ 1  Set up project</code></pre>
+        </div>
+        <p><strong>Pagination</strong> means returning a long list a page at a time. The simple way is <code>LIMIT</code> (the page size) with <code>OFFSET</code> (how many rows to skip):</p>
+        <pre><code>SELECT id, title FROM tasks ORDER BY id LIMIT 3 OFFSET 3;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id          title
+--  ----------------------
+ 4  Build login page
+ 5  Fix login redirect
+ 6  Add task list endpoint</code></pre>
+        </div>
+        <p><code>OFFSET</code> has two weaknesses: the database still walks past every skipped row, and a row added while someone pages shifts everything. <strong>Keyset pagination</strong> avoids both. It remembers the last <code>id</code> you saw, and asks for the rows after it:</p>
+        <pre><code>SELECT id, title FROM tasks WHERE id &gt; 10 ORDER BY id LIMIT 3;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id       title
+--  ----------------
+11  Speed up search
+12  Update README
+13  Plan next sprint</code></pre>
+        </div>
+        <h3>3.2 NULL is not a value</h3>
+        <p><code>NULL</code> means "no value, unknown". Nothing equals <code>NULL</code>, not even <code>NULL</code>, so <code>= NULL</code> never matches. Use <code>IS NULL</code>:</p>
+        <pre><code>SELECT id, title FROM tasks WHERE description = NULL;
+SELECT id, title, description FROM tasks WHERE id IN (3, 4, 6) ORDER BY id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id          title              description
+--  ----------------------  ------------------
+ 3  Write seed data
+ 4  Build login page        Email and password
+ 6  Add task list endpoint</code></pre>
+          <p>The first query returns no rows and no error, which is why this mistake is easy to miss. The second shows tasks 3 and 6 with an empty description: those are the <code>NULL</code>s. The right filter is <code>WHERE description IS NULL</code>.</p>
+        </div>
+        <h3>3.3 INSERT, UPDATE and DELETE</h3>
+        <pre><code>INSERT INTO tasks (title, user_id) VALUES ('Try defaults', 1);
+SELECT id, title, status, user_id FROM tasks WHERE id = last_insert_rowid();</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id     title      status  user_id
+--  ------------  ------  -------
+16  Try defaults  todo          1</code></pre>
+          <p>You did not give an <code>id</code> or a <code>status</code>: the primary key took the next number, and <code>DEFAULT 'todo'</code> filled in the status.</p>
+        </div>
+        <p><code>UPDATE</code> changes rows, and <code>DELETE</code> removes them. <strong>Always write the <code>WHERE</code>.</strong> Without it they hit every row.</p>
+        <pre><code>UPDATE tasks SET status = 'done', updated_at = datetime('now') WHERE id = 5;
+SELECT id, title, status FROM tasks WHERE id = 5;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id        title         status
+--  ------------------  ------
+ 5  Fix login redirect  done</code></pre>
+        </div>
+        <p>Now the <code>ON DELETE</code> rules from section 2. Delete Cara (user 3) and look at her tasks, then delete task 5 and look at its tag links:</p>
+        <pre><code>DELETE FROM users WHERE id = 3;
+SELECT id, title, user_id FROM tasks WHERE id IN (4, 5, 14);
+SELECT COUNT(*) AS links FROM task_tags WHERE task_id = 5;
+DELETE FROM tasks WHERE id = 5;
+SELECT COUNT(*) AS links FROM task_tags WHERE task_id = 5;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id          title          user_id
+--  ---------------------  -------
+ 4  Build login page
+ 5  Fix login redirect
+14  Fix typo on home page
+links
+-----
+    3
+links
+-----
+    0</code></pre>
+          <p>Cara's tasks are still there, but their <code>user_id</code> is empty: that is <code>SET NULL</code>. Task 5 had 3 tag links, and deleting the task removed them too: that is <code>CASCADE</code>.</p>
+        </div>
+        <p>You changed the data, and the exercises in section 5 need the original. Reset it:</p>
+        <pre><code>.read sql/schema.sql
+.read sql/seed.sql</code></pre>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 3</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c3-7"><label for="c3-7">You ran a <code>SELECT</code> with <code>WHERE</code>, <code>ORDER BY</code> and <code>LIMIT</code>, and a keyset query.</label></li>
+            <li><input type="checkbox" id="c3-8"><label for="c3-8">You saw <code>= NULL</code> return nothing, and can say what to write instead.</label></li>
+            <li><input type="checkbox" id="c3-9"><label for="c3-9">You saw <code>SET NULL</code> and <code>CASCADE</code> work, and then reset the database.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s4">
+        <h2><span class="num">4.</span>Joins, aggregates and subqueries <span class="time">25 min</span></h2>
+        <p>Data is spread over tables, so most useful questions need more than one. (Do the setup lines from section 3 again if you left the shell.)</p>
+        <h3>4.1 Joins</h3>
+        <p>A <strong>join</strong> puts rows from two tables side by side where a condition matches. The <code>ON</code> clause is that condition: the foreign key on one side equals the primary key on the other.</p>
+        <p>An <strong><code>INNER JOIN</code></strong> keeps only the rows that have a match on both sides:</p>
+        <pre><code>SELECT t.id, t.title, u.name
+FROM tasks AS t
+INNER JOIN users AS u ON u.id = t.user_id
+WHERE t.id &lt;= 3;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id       title       name
+--  ---------------  ----
+ 1  Set up project   Ana
+ 2  Design schema    Ana
+ 3  Write seed data  Ben</code></pre>
+          <p><code>AS t</code> and <code>AS u</code> are short names (aliases) for the tables, so you can write <code>t.id</code>.</p>
+        </div>
+        <p>A <strong><code>LEFT JOIN</code></strong> keeps <em>every</em> row from the left table, and fills in <code>NULL</code> where the right table has no match. Tasks 13 and 15 have no owner:</p>
+        <pre><code>SELECT t.id, t.title, u.name
+FROM tasks AS t
+LEFT JOIN users AS u ON u.id = t.user_id
+WHERE t.id &gt;= 13;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id          title          name
+--  ---------------------  ----
+13  Plan next sprint
+14  Fix typo on home page  Cara
+15  Back up the database</code></pre>
+          <p>With an <code>INNER JOIN</code>, tasks 13 and 15 would be missing. A <code>LEFT JOIN</code> plus <code>WHERE right.id IS NULL</code> is also the way to find rows with <em>no</em> match, such as users with no tasks.</p>
+        </div>
+        <p>To cross a many-to-many link, join through the junction table: tasks, then <code>task_tags</code>, then tags.</p>
+        <pre><code>SELECT t.title, g.name AS tag
+FROM tasks AS t
+JOIN task_tags AS tt ON tt.task_id = t.id
+JOIN tags AS g ON g.id = tt.tag_id
+WHERE t.id = 5
+ORDER BY g.name;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>      title           tag
+------------------  --------
+Fix login redirect  bug
+Fix login redirect  frontend
+Fix login redirect  urgent</code></pre>
+          <p>One task with three tags becomes three rows.</p>
+        </div>
+        <h3>4.2 Aggregates, GROUP BY and HAVING</h3>
+        <p>An <strong>aggregate function</strong> collapses many rows into one value: <code>COUNT</code>, <code>SUM</code>, <code>AVG</code>, <code>MIN</code>, <code>MAX</code>. <code>GROUP BY</code> makes one group per value of a column and runs the aggregate on each group. <code>HAVING</code> filters the groups after they are counted. (<code>WHERE</code> filters the rows <em>before</em> grouping.)</p>
+        <pre><code>SELECT user_id, COUNT(*) AS total FROM tasks GROUP BY user_id ORDER BY user_id;
+SELECT status, COUNT(*) AS total, MIN(created_at) AS oldest
+FROM tasks
+GROUP BY status
+HAVING COUNT(*) &gt;= 4;
+SELECT COUNT(*) AS all_tasks, COUNT(description) AS with_description FROM tasks;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>user_id  total
+-------  -----
+             2
+      1      4
+      2      3
+      3      3
+      4      3
+status  total        oldest
+------  -----  -------------------
+done        5  2026-10-01 09:00:00
+todo        7  2026-10-03 14:20:00
+all_tasks  with_description
+---------  ----------------
+       15                10</code></pre>
+          <p>The empty <code>user_id</code> row is the group of two unassigned tasks. <code>COUNT(*)</code> counts rows, and <code>COUNT(column)</code> counts only the rows where that column is not <code>NULL</code>.</p>
+        </div>
+        <h3>4.3 Subqueries</h3>
+        <p>A <strong>subquery</strong> is a query inside another query. Use one when the answer to one question feeds another:</p>
+        <pre><code>SELECT title, created_at
+FROM tasks
+WHERE created_at &gt; (SELECT created_at FROM tasks WHERE id = 10)
+ORDER BY created_at;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>        title              created_at
+---------------------  -------------------
+Speed up search        2026-10-06 09:45:00
+Update README          2026-10-06 12:00:00
+Plan next sprint       2026-10-07 09:00:00
+Fix typo on home page  2026-10-07 11:20:00
+Back up the database   2026-10-08 08:00:00</code></pre>
+          <p>The inner query finds when task 10 was created, and the outer query asks for the tasks created after that.</p>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 4</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c4-10"><label for="c4-10">You ran an <code>INNER JOIN</code>, a <code>LEFT JOIN</code> and a join through <code>task_tags</code>.</label></li>
+            <li><input type="checkbox" id="c4-11"><label for="c4-11">You can say what a <code>LEFT JOIN</code> keeps that an <code>INNER JOIN</code> drops.</label></li>
+            <li><input type="checkbox" id="c4-12"><label for="c4-12">You can say the difference between <code>WHERE</code> and <code>HAVING</code>.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>Exercise set: 24 graded queries <span class="time">40 min</span></h2>
+        <p>Now you write the queries. There are 24 exercises, grouped by skill. Each says what to return, which columns in which order, and how many rows to expect. A script checks every answer, so you always know whether you are right. A solution page explains every answer, for when you are stuck.</p>
+        <h3>5.1 Set up the exercise file</h3>
+        <p>Create <code>sql/exercises.sql</code>. Each exercise starts with a <code>-- Exercise NN</code> line. Write your query on the blank lines under it, and <strong>keep the <code>-- Exercise</code> lines</strong>, because the checker reads them:</p>
+        <pre><code>-- Write your query under each exercise, then run: npm run sql:check
+-- Keep the line that starts with "-- Exercise". The checker reads it.
+
+-- Exercise 01 (Filtering): List the id and title of every task whose status is 'todo'.
+-- Columns: id, title. Order: by id. Expected: 7 rows.
+
+
+-- Exercise 02 (Filtering): List the id and title of every task whose title contains the word 'page'.
+-- Columns: id, title. Order: by id. Expected: 2 rows.
+
+
+-- Exercise 03 (Filtering): List the id and title of every task that has no description.
+-- Columns: id, title. Order: by id. Expected: 5 rows.
+
+
+-- Exercise 04 (Filtering): List the id and title of every task that is not 'done' and was created on or after '2026-10-05'.
+-- Columns: id, title. Order: by id. Expected: 5 rows.
+
+
+-- Exercise 05 (Filtering): List the id, title and status of tasks that are 'todo' or 'in_progress' and owned by user 3 or user 4.
+-- Columns: id, title, status. Order: by id. Expected: 4 rows.
+
+
+-- Exercise 06 (Sorting and pagination): List the id and title of the 3 newest tasks, newest first.
+-- Columns: id, title. Order: newest first (created_at, then id, both descending). Expected: 3 rows.
+
+
+-- Exercise 07 (Sorting and pagination): Page 2 of the tasks, sorted by id, with 5 tasks per page.
+-- Columns: id, title. Order: by id. Expected: 5 rows.
+
+
+-- Exercise 08 (Sorting and pagination): Keyset pagination: the next 4 tasks after the task with id 9, sorted by id. Do not use 'OFFSET'.
+-- Columns: id, title. Order: by id. Expected: 4 rows.
+
+
+-- Exercise 09 (Joins and aggregates): List the title and the number of tags of every task that has 3 or more tags.
+-- Columns: title, tag_count. Order: by title. Expected: 2 rows.
+
+
+-- Exercise 10 (Joins): List each task's title with its owner's name. Leave out tasks that have no owner (an 'INNER JOIN').
+-- Columns: title, name. Order: by task id. Expected: 13 rows.
+
+
+-- Exercise 11 (Joins): List each task's title with its owner's name, and keep the tasks that have no owner (their name is 'NULL'). Use a 'LEFT JOIN'.
+-- Columns: title, name. Order: by task id. Expected: 15 rows.
+
+
+-- Exercise 12 (Joins): List the names of users who own no tasks.
+-- Columns: name. Order: by name. Expected: 1 row.
+
+
+-- Exercise 13 (Joins): List every task-and-tag pair: the task title and the tag name.
+-- Columns: title, tag. Order: by task id, then tag name. Expected: 23 rows.
+
+
+-- Exercise 14 (Joins): List the id and title of every task tagged 'bug'.
+-- Columns: id, title. Order: by id. Expected: 3 rows.
+
+
+-- Exercise 15 (Joins): List the names of tags that no task uses.
+-- Columns: name. Order: by name. Expected: 1 row.
+
+
+-- Exercise 16 (Aggregates): Count the tasks in each status.
+-- Columns: status, total. Order: by status. Expected: 3 rows.
+
+
+-- Exercise 17 (Aggregates): List every user's name and how many tasks they own. Users with no tasks show 0.
+-- Columns: name, total. Order: by name. Expected: 5 rows.
+
+
+-- Exercise 18 (Aggregates): List the names of users who own more than 3 tasks.
+-- Columns: name. Order: by name. Expected: 1 row.
+
+
+-- Exercise 19 (Aggregates): List the 3 most-used tags and how many tasks use each. Break ties by tag name.
+-- Columns: name, total. Order: most used first, then by name. Expected: 3 rows.
+
+
+-- Exercise 20 (Aggregates): For each user who has at least one 'done' task, list the name and how many 'done' tasks they have.
+-- Columns: name, done_total. Order: by name. Expected: 4 rows.
+
+
+-- Exercise 21 (Aggregates): Find the earliest and the latest 'created_at' among all tasks (one row).
+-- Columns: first_created, last_created. Order: one row. Expected: 1 row.
+
+
+-- Exercise 22 (Subqueries): List the title of every task owned by the user who owns the most tasks. Use a subquery, and do not hard-code the user.
+-- Columns: title. Order: by id. Expected: 4 rows.
+
+
+-- Exercise 23 (Subqueries): List the id and title of every task that has no tags. Use 'NOT EXISTS' or 'NOT IN'.
+-- Columns: id, title. Order: by id. Expected: 2 rows.
+
+
+-- Exercise 24 (Subqueries): List the names of users who own at least one 'done' task, using an 'IN' subquery.
+-- Columns: name. Order: by name. Expected: 4 rows.</code></pre>
+        <h3>5.2 Set up the checker</h3>
+        <p>The checker reads your file, runs each query against a read-only copy of your database, and compares the rows with the right answer. It uses <code>node:sqlite</code>, the SQLite that is built into Node.js 24, so you install nothing. (It is not how the Task API will talk to a database: that is Prisma, in M07.) You do not need to understand it line by line, so paste it into <code>src/labs/check-exercises.ts</code>:</p>
+        <pre><code>import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+
+// For each exercise: how many rows the right answer has, and a fingerprint of those rows
+const expected = [
+  { n: 1, rows: 7, hash: "56bd9c7b52b3" },
+  { n: 2, rows: 2, hash: "4827bad70c2f" },
+  { n: 3, rows: 5, hash: "e804a3bdfec6" },
+  { n: 4, rows: 5, hash: "b2a837394f9a" },
+  { n: 5, rows: 4, hash: "338a3f337d28" },
+  { n: 6, rows: 3, hash: "3c8c6bfa7a93" },
+  { n: 7, rows: 5, hash: "3501e2d82751" },
+  { n: 8, rows: 4, hash: "291ba49545ca" },
+  { n: 9, rows: 2, hash: "a80a58ae1289" },
+  { n: 10, rows: 13, hash: "b3bb0ee20bfc" },
+  { n: 11, rows: 15, hash: "cc277cb42aa6" },
+  { n: 12, rows: 1, hash: "c9147e533595" },
+  { n: 13, rows: 23, hash: "e8aa4ac3dbfc" },
+  { n: 14, rows: 3, hash: "668e6c085ecc" },
+  { n: 15, rows: 1, hash: "67e911eb9056" },
+  { n: 16, rows: 3, hash: "09c941157680" },
+  { n: 17, rows: 5, hash: "2ac5693efc53" },
+  { n: 18, rows: 1, hash: "31a30c64d28a" },
+  { n: 19, rows: 3, hash: "ee248b3f6d35" },
+  { n: 20, rows: 4, hash: "9398e3ec5ba0" },
+  { n: 21, rows: 1, hash: "c5a5cee2ce74" },
+  { n: 22, rows: 4, hash: "4c2d43ef5769" },
+  { n: 23, rows: 2, hash: "d75d4b2ab412" },
+  { n: 24, rows: 4, hash: "eb8186667cf5" },
+];
+
+// Open the database read-only, so a query here can never change your data
+const db = new DatabaseSync("data/tasks.db", { readOnly: true });
+const text = readFileSync("sql/exercises.sql", "utf8");
+
+// Split the file at every "-- Exercise NN" line, and keep the SQL under each one
+const parts = text.split(/^-- Exercise (\d+).*$/m);
+const answers = new Map&lt;number, string&gt;();
+for (let i = 1; i &lt; parts.length; i += 2) {
+  const sql = (parts[i + 1] ?? "")
+    .split("\n")
+    .filter((line) =&gt; !line.trim().startsWith("--"))
+    .join("\n")
+    .trim()
+    .replace(/;+$/, "");
+  answers.set(Number(parts[i]), sql);
+}
+
+let passed = 0;
+for (const { n, rows, hash } of expected) {
+  const label = `Exercise ${String(n).padStart(2, "0")}`;
+  const sql = answers.get(n);
+  if (!sql) {
+    console.log(`-    ${label}: not written yet`);
+    continue;
+  }
+  try {
+    const result = db.prepare(sql).all().map((row) =&gt; Object.values(row));
+    const fingerprint = createHash("sha256").update(JSON.stringify(result)).digest("hex").slice(0, 12);
+    if (fingerprint === hash) {
+      passed++;
+      console.log(`ok   ${label}`);
+    } else {
+      const hint = result.length === rows ? "the row count is right, but the values or their order differ" : `got ${result.length} rows, expected ${rows}`;
+      console.log(`FAIL ${label}: ${hint}`);
+    }
+  } catch (error) {
+    console.log(`ERR  ${label}: ${(error as Error).message}`);
+  }
+}
+
+console.log(`${passed}/${expected.length} passed`);
+process.exitCode = passed === expected.length ? 0 : 1;</code></pre>
+        <p>Add a script to run it, and check it with your empty exercise file:</p>
+        <pre><code>npm pkg set scripts.sql:check="tsx src/labs/check-exercises.ts"
+npm run sql:check</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 sql:check
+&gt; tsx src/labs/check-exercises.ts
+
+-    Exercise 01: not written yet
+-    Exercise 02: not written yet
+...
+-    Exercise 24: not written yet
+0/24 passed</code></pre>
+        </div>
+        <h3>5.3 Do the exercises</h3>
+        <p>Work through them in order, and run <code>npm run sql:check</code> after each few. You can try a query first at the <code>sqlite3</code> prompt to see its rows, then paste it into the file. The result is compared by <strong>values and order</strong>: the column names do not matter, but the columns must come in the order the exercise lists, and the rows in the order it says.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Exercises</th><th>Skill</th><th>Section to look back at</th></tr></thead>
+            <tbody>
+              <tr><td>1 to 5</td><td>Filtering</td><td>3.1, 3.2</td></tr>
+              <tr><td>6 to 8</td><td>Sorting and pagination</td><td>3.1</td></tr>
+              <tr><td>9</td><td>Joins and <code>HAVING</code> together</td><td>4.1, 4.2</td></tr>
+              <tr><td>10 to 15</td><td>Joins</td><td>4.1</td></tr>
+              <tr><td>16 to 21</td><td>Aggregates</td><td>4.2</td></tr>
+              <tr><td>22 to 24</td><td>Subqueries</td><td>4.3</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>If a check says <code>FAIL ...: the row count is right, but the values or their order differ</code>, look at your <code>ORDER BY</code> and your column order first. If it says <code>ERR</code>, the message is SQLite's own: read it, it usually names the problem. When you are stuck on an exercise after a few tries, the <a href="solution.html">solution page</a> has the answer and the reason. Use it only after you have tried. A good budget is about a minute and a half per exercise: if one has you stuck for five minutes, read its answer, work out why it is right, and move on.</p>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 sql:check
+&gt; tsx src/labs/check-exercises.ts
+
+ok   Exercise 01
+ok   Exercise 02
+...
+ok   Exercise 24
+24/24 passed</code></pre>
+          <p>If you have a mix, a line looks like <code>FAIL Exercise 03: got 2 rows, expected 5</code> or <code>-    Exercise 07: not written yet</code>.</p>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 5</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c5-13"><label for="c5-13"><code>npm run sql:check</code> shows <code>24/24 passed</code>.</label></li>
+            <li><input type="checkbox" id="c5-14"><label for="c5-14">You wrote at least one query each with an <code>INNER JOIN</code>, a <code>LEFT JOIN</code>, a <code>GROUP BY</code> with <code>HAVING</code>, and a subquery.</label></li>
+            <li><input type="checkbox" id="c5-15"><label for="c5-15">You can say what an exercise taught you that you did not expect.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add sql query exercises and checker"
+git push</code></pre>
+      </section>
+
+      <section id="s6">
+        <h2><span class="num">6.</span>Indexes, EXPLAIN QUERY PLAN and transactions <span class="time">20 min</span></h2>
+        <h3>6.1 What an index is for</h3>
+        <p>Without help, finding rows means reading every row in the table: a <strong>scan</strong>. An <strong>index</strong> is a separate, sorted structure the database keeps up to date, so it can jump straight to the rows it needs, like the index at the back of a book. The price is extra space and slower writes, so you index the columns you search or join on.</p>
+        <p><code>EXPLAIN QUERY PLAN</code> shows how SQLite will run a query. Open the database (with the three setup lines from section 3) and ask about five queries:</p>
+        <pre><code>EXPLAIN QUERY PLAN SELECT id, title FROM tasks WHERE status = 'todo';
+EXPLAIN QUERY PLAN SELECT id, title FROM tasks WHERE user_id = 3;
+EXPLAIN QUERY PLAN SELECT task_id FROM task_tags WHERE tag_id = 1;
+EXPLAIN QUERY PLAN SELECT * FROM task_tags WHERE task_id = 5;
+EXPLAIN QUERY PLAN SELECT * FROM users WHERE email = 'ana@example.com';</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>QUERY PLAN
+`--SCAN tasks
+QUERY PLAN
+`--SCAN tasks
+QUERY PLAN
+`--SCAN task_tags
+QUERY PLAN
+`--SEARCH task_tags USING COVERING INDEX sqlite_autoindex_task_tags_1 (task_id=?)
+QUERY PLAN
+`--SEARCH users USING INDEX sqlite_autoindex_users_1 (email=?)</code></pre>
+          <p><code>SCAN</code> means every row is read. <code>SEARCH ... USING INDEX</code> means the index is used. The last two already search, because the primary key of <code>task_tags</code> and the <code>UNIQUE</code> on <code>email</code> each create an index for you. The first three scan: nothing indexes <code>status</code>, <code>tasks.user_id</code> or <code>task_tags.tag_id</code>. (SQLite does not index foreign key columns by itself.)</p>
+        </div>
+        <p>Add an index for each, and ask again:</p>
+        <pre><code>CREATE INDEX idx_tasks_status ON tasks (status);
+CREATE INDEX idx_tasks_user_id ON tasks (user_id);
+CREATE INDEX idx_task_tags_tag_id ON task_tags (tag_id);
+EXPLAIN QUERY PLAN SELECT id, title FROM tasks WHERE status = 'todo';
+EXPLAIN QUERY PLAN SELECT id, title FROM tasks WHERE user_id = 3;
+EXPLAIN QUERY PLAN SELECT task_id FROM task_tags WHERE tag_id = 1;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>QUERY PLAN
+`--SEARCH tasks USING INDEX idx_tasks_status (status=?)
+QUERY PLAN
+`--SEARCH tasks USING INDEX idx_tasks_user_id (user_id=?)
+QUERY PLAN
+`--SEARCH task_tags USING INDEX idx_task_tags_tag_id (tag_id=?)</code></pre>
+          <p>All three went from <code>SCAN</code> to <code>SEARCH</code>. With 15 rows you could not tell the difference in speed. With a million rows you would.</p>
+        </div>
+        <p>An index lives inside the database file, and it disappears when <code>schema.sql</code> drops the tables. So write the three <code>CREATE INDEX</code> lines at the <strong>end</strong> of <code>sql/schema.sql</code> too, and your reset keeps them:</p>
+        <pre><code>CREATE INDEX idx_tasks_status ON tasks (status);
+CREATE INDEX idx_tasks_user_id ON tasks (user_id);
+CREATE INDEX idx_task_tags_tag_id ON task_tags (tag_id);</code></pre>
+        <h3>6.2 Transactions</h3>
+        <p>A <strong>transaction</strong> groups statements so they all happen or none do. <code>BEGIN</code> starts one, <code>COMMIT</code> makes it permanent, and <code>ROLLBACK</code> throws it away. This is what <strong>ACID</strong> promises:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Letter</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><strong>A</strong>tomic</td><td>All of the statements happen, or none of them</td></tr>
+              <tr><td><strong>C</strong>onsistent</td><td>The database moves from one valid state to another, and constraints hold</td></tr>
+              <tr><td><strong>I</strong>solated</td><td>Other connections do not see your half-finished work</td></tr>
+              <tr><td><strong>D</strong>urable</td><td>Once committed, the change survives a crash</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Without <code>BEGIN</code>, each statement is its own transaction and commits at once. Try moving all of Dev's tasks to Eli, look at the result, and then change your mind:</p>
+        <pre><code>BEGIN;
+UPDATE tasks SET user_id = 5 WHERE user_id = 4;
+SELECT user_id, COUNT(*) AS total FROM tasks GROUP BY user_id ORDER BY user_id;
+ROLLBACK;
+SELECT user_id, COUNT(*) AS total FROM tasks GROUP BY user_id ORDER BY user_id;</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>user_id  total
+-------  -----
+             2
+      1      4
+      2      3
+      3      3
+      5      3
+user_id  total
+-------  -----
+             2
+      1      4
+      2      3
+      3      3
+      4      3</code></pre>
+          <p>Inside the transaction, Dev's three tasks belong to Eli. After <code>ROLLBACK</code>, it is as if it never happened.</p>
+        </div>
+        <p>The real use is when something fails halfway. This transaction makes two changes, and the second breaks the <code>CHECK</code>:</p>
+        <pre><code>BEGIN;
+UPDATE tasks SET status = 'done' WHERE id = 7;
+UPDATE tasks SET status = 'archived' WHERE id = 8;
+SELECT id, status FROM tasks WHERE id IN (7, 8);
+ROLLBACK;
+SELECT id, status FROM tasks WHERE id IN (7, 8);</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id  status
+--  ------
+ 7  done
+ 8  todo
+id  status
+--  ------
+ 7  todo
+ 8  todo</code></pre>
+          <p>The second <code>UPDATE</code> printed an error (and changed nothing), but the first one was still pending: task 7 shows <code>done</code> inside the transaction. Your program must notice the error and issue the <code>ROLLBACK</code>, so the database is not left half-changed. You will need exactly this in the M10 capstone, when one business rule needs several changes to succeed together.</p>
+        </div>
+        <p>Finish with the happy ending, <code>COMMIT</code>, then reset:</p>
+        <pre><code>BEGIN;
+UPDATE tasks SET status = 'done' WHERE id = 7;
+COMMIT;
+SELECT id, status FROM tasks WHERE id = 7;
+.read sql/schema.sql
+.read sql/seed.sql</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>id  status
+--  ------
+ 7  done</code></pre>
+        </div>
+        <p>Run <code>npm run sql:check</code> once more to confirm the reset brought you back to 24 passing, with the indexes in place.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 6</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c6-16"><label for="c6-16">You saw <code>SCAN</code> become <code>SEARCH</code> after you created an index.</label></li>
+            <li><input type="checkbox" id="c6-17"><label for="c6-17">The three <code>CREATE INDEX</code> lines are at the end of <code>sql/schema.sql</code>.</label></li>
+            <li><input type="checkbox" id="c6-18"><label for="c6-18">You rolled a transaction back and saw the data return, and you can say what atomic means.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add indexes to the schema"
+git push</code></pre>
+      </section>
+
+      <section id="s7">
+        <h2><span class="num">7.</span>SQL injection and the parameterised fix <span class="time">15 min</span></h2>
+        <p><strong>SQL injection</strong> is an attack where a user's input is treated as part of the SQL. It happens when code builds a query by pasting text into a string. It has caused real data breaches, and it is entirely avoidable.</p>
+        <p>Create <code>src/labs/injection.ts</code>. It has two functions that do the same job, finding a user by email, written two ways, and it tries three inputs on each:</p>
+        <pre><code>import { DatabaseSync } from "node:sqlite";
+
+const db = new DatabaseSync("data/tasks.db", { readOnly: true });
+
+// VULNERABLE: the user's text is pasted into the SQL string
+function findUserUnsafe(email: string) {
+  const sql = `SELECT id, name, email FROM users WHERE email = '${email}'`;
+  console.log("  SQL sent:", sql);
+  return db.prepare(sql).all();
+}
+
+// SAFE: the SQL has a ? placeholder, and the value travels separately
+function findUserSafe(email: string) {
+  const sql = "SELECT id, name, email FROM users WHERE email = ?";
+  console.log("  SQL sent:", sql, "  value:", JSON.stringify(email));
+  return db.prepare(sql).all(email);
+}
+
+const inputs = [
+  "ana@example.com", // a normal lookup
+  "' OR '1'='1", // returns every user
+  "nobody' UNION SELECT id, title, status FROM tasks --", // leaks the tasks table
+];
+
+for (const [label, find] of [
+  ["VULNERABLE", findUserUnsafe],
+  ["PARAMETERISED", findUserSafe],
+] as const) {
+  console.log(`\n=== ${label} ===`);
+  for (const input of inputs) {
+    console.log(`input: ${input}`);
+    const rows = find(input);
+    console.log(`  rows returned: ${rows.length}`);
+    for (const row of rows.slice(0, 3)) console.log("   ", Object.values(row).join(" | "));
+  }
+}</code></pre>
+        <pre><code>npx tsx src/labs/injection.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>=== VULNERABLE ===
+input: ana@example.com
+  SQL sent: SELECT id, name, email FROM users WHERE email = 'ana@example.com'
+  rows returned: 1
+    1 | Ana | ana@example.com
+input: ' OR '1'='1
+  SQL sent: SELECT id, name, email FROM users WHERE email = '' OR '1'='1'
+  rows returned: 5
+    1 | Ana | ana@example.com
+    2 | Ben | ben@example.com
+    3 | Cara | cara@example.com
+input: nobody' UNION SELECT id, title, status FROM tasks --
+  SQL sent: SELECT id, name, email FROM users WHERE email = 'nobody' UNION SELECT id, title, status FROM tasks --'
+  rows returned: 15
+    1 | Set up project | done
+    2 | Design schema | done
+    3 | Write seed data | done
+
+=== PARAMETERISED ===
+input: ana@example.com
+  SQL sent: SELECT id, name, email FROM users WHERE email = ?   value: "ana@example.com"
+  rows returned: 1
+    1 | Ana | ana@example.com
+input: ' OR '1'='1
+  SQL sent: SELECT id, name, email FROM users WHERE email = ?   value: "' OR '1'='1"
+  rows returned: 0
+input: nobody' UNION SELECT id, title, status FROM tasks --
+  SQL sent: SELECT id, name, email FROM users WHERE email = ?   value: "nobody' UNION SELECT id, title, status FROM tasks --"
+  rows returned: 0</code></pre>
+          <p>(The output begins with a blank line, which is left out here.)</p>
+        </div>
+        <p>Read what happened in the vulnerable half:</p>
+        <ul>
+          <li><strong>Input 2</strong> closes the quote itself (<code>'</code>) and adds <code>OR '1'='1'</code>, which is always true. The query that was meant to find one user returned <strong>all five</strong>. This is how login forms get bypassed.</li>
+          <li><strong>Input 3</strong> closes the quote, adds a <code>UNION SELECT</code> that reads a different table, and turns the rest of the original query into a comment with <code>--</code>. A query that was meant to return a user returned <strong>the tasks table</strong>. This is how data leaks.</li>
+        </ul>
+        <p>In the parameterised half, the SQL text is fixed: it has a <code>?</code> placeholder, and the value is sent <strong>separately</strong>. The database has already compiled the statement before it sees the value, so the value can only ever be data, never SQL. The same two inputs return <strong>0 rows</strong>: no user has an email that is literally <code>' OR '1'='1</code>.</p>
+        <p>The rule: <strong>never build SQL by joining strings with user input. Always pass values as parameters.</strong> Prisma (M07) does this for you, which is one of the reasons to use it, but you should know what it is protecting you from. (Parameters protect <em>values</em>. You cannot parameterise a table or column name. If a name comes from the user, check it against a fixed list of allowed names.)</p>
+        <div class="callout note">
+          <p class="callout-title">The demo is read-only on purpose</p>
+          <p>The script opens the database read-only, so nothing here can change your data. A real attacker would not be so kind. Some drivers also run several statements in one call, and then an input such as <code>'; DROP TABLE users; --</code> is dangerous too. Parameters stop that as well.</p>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 7</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c7-19"><label for="c7-19">You saw the attack return all users and then the whole tasks table from the vulnerable function.</label></li>
+            <li><input type="checkbox" id="c7-20"><label for="c7-20">You saw the same input return 0 rows from the parameterised function.</label></li>
+            <li><input type="checkbox" id="c7-21"><label for="c7-21">You can say, in your own words, why a <code>?</code> placeholder stops injection.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add sql injection demo"
+git push</code></pre>
+      </section>
+
+      <section id="s8">
+        <h2><span class="num">8.</span>The Mermaid ERD <span class="time">10 min</span></h2>
+        <p>An <strong>ERD</strong> (entity-relationship diagram) shows tables, their columns and how they relate. <strong>Mermaid</strong> lets you write a diagram as text, and GitHub draws it when you put it in a Markdown file. You write it by hand and it has to <strong>match the schema you built</strong>, so it is a check on your design.</p>
+        <p>Add this to your <code>README.md</code> (a heading, then a fenced block with the language <code>mermaid</code>):</p>
+        <pre><code>## Database
+
+```mermaid
+erDiagram
+    users |o--o{ tasks : "owns"
+    tasks ||--o{ task_tags : "has"
+    tags ||--o{ task_tags : "labels"
+
+    users {
+        INTEGER id PK
+        TEXT email UK "NOT NULL"
+        TEXT name "NOT NULL"
+        TEXT created_at "NOT NULL"
+    }
+    tasks {
+        INTEGER id PK
+        TEXT title "NOT NULL"
+        TEXT description
+        TEXT status "NOT NULL, todo / in_progress / done"
+        INTEGER user_id FK "NULL allowed"
+        TEXT created_at "NOT NULL"
+        TEXT updated_at "NOT NULL"
+    }
+    tags {
+        INTEGER id PK
+        TEXT name UK "NOT NULL"
+    }
+    task_tags {
+        INTEGER task_id PK, FK
+        INTEGER tag_id PK, FK
+    }
+```</code></pre>
+        <p>Read the relationship lines. <code>users |o--o{ tasks</code> says one user has zero or many tasks, and a task has zero or one user (the <code>o</code> on the user side is because <code>user_id</code> may be empty). <code>tasks ||--o{ task_tags</code> says one task has zero or many links, and each link has exactly one task. The symbols are: <code>|</code> exactly one, <code>o</code> zero, and <code>{</code> many. <code>PK</code>, <code>FK</code> and <code>UK</code> mark primary, foreign and unique keys.</p>
+        <p>Now check it against the real database. At the <code>sqlite3</code> prompt, list the columns of each table, and compare them with the diagram (names, and which are keys):</p>
+        <pre><code>PRAGMA table_info(tasks);
+PRAGMA table_info(task_tags);</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>cid     name       type    notnull    dflt_value     pk
+---  -----------  -------  -------  ---------------  --
+  0  id           INTEGER        0                    1
+  1  title        TEXT           1                    0
+  2  description  TEXT           0                    0
+  3  status       TEXT           1  'todo'            0
+  4  user_id      INTEGER        0                    0
+  5  created_at   TEXT           1  datetime('now')   0
+  6  updated_at   TEXT           1  datetime('now')   0
+cid   name     type    notnull  dflt_value  pk
+---  -------  -------  -------  ----------  --
+  0  task_id  INTEGER        1               1
+  1  tag_id   INTEGER        1               2</code></pre>
+          <p><code>pk</code> is <code>1</code> and <code>2</code> for the two columns of the <code>task_tags</code> primary key, which is how SQLite says "the primary key is the pair". Compare the names, the types and the <code>notnull</code> flags with the diagram.</p>
+        </div>
+        <p>Commit and push, then open your repository on GitHub, and look at the README: the diagram should be drawn. (If you see the text of the diagram and not a picture, check the opening line is exactly three backticks followed by <code>mermaid</code>, with nothing else on it.)</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 8</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c8-22"><label for="c8-22"><code>README.md</code> has the diagram, and GitHub draws it.</label></li>
+            <li><input type="checkbox" id="c8-23"><label for="c8-23">Every table and column in the diagram exists in your database, and the keys match.</label></li>
+            <li><input type="checkbox" id="c8-24"><label for="c8-24">You can say how the diagram shows a 1:N and an M:N relationship.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "docs: add database erd to the readme"
+git push</code></pre>
+      </section>
+
+      <section id="check">
+        <h2>Check your understanding <span class="time">5 min</span></h2>
+        <p>Answer each one in your head, then open it to compare.</p>
+        <details>
+          <summary>What is the difference between a primary key and a foreign key?</summary>
+          <p>A primary key identifies one row in its own table, and no two rows share a value. A foreign key is a column in one table that holds the primary key of a row in another table, so it links the two. The database can refuse a foreign key value that points to no row (when <code>PRAGMA foreign_keys</code> is on).</p>
+        </details>
+        <details>
+          <summary>How do you model a 1:N and an M:N relationship?</summary>
+          <p>For 1:N, put a foreign key on the "many" side: each task has a <code>user_id</code>. For M:N, you cannot, so add a junction table with a foreign key to each side: <code>task_tags</code> has <code>task_id</code> and <code>tag_id</code>, and its primary key is the pair, so a tag cannot be attached to the same task twice.</p>
+        </details>
+        <details>
+          <summary>What is an index for, and what does it cost?</summary>
+          <p>An index lets the database find rows by a column without reading the whole table, so <code>SCAN</code> becomes <code>SEARCH</code> in <code>EXPLAIN QUERY PLAN</code>. It costs disk space, and every insert, update and delete has to maintain it. So index the columns you filter and join on, not everything.</p>
+        </details>
+        <details>
+          <summary>Why does a <code>LEFT JOIN</code> followed by <code>WHERE right_table.column = ...</code> behave like an <code>INNER JOIN</code>?</summary>
+          <p>The <code>LEFT JOIN</code> keeps unmatched left rows by filling the right side with <code>NULL</code>. A <code>WHERE</code> condition on a right-side column is false for <code>NULL</code>, so it removes those very rows again. To keep them, put the condition in the <code>ON</code> clause, or allow <code>IS NULL</code> in the <code>WHERE</code>.</p>
+        </details>
+        <details>
+          <summary>Why does a parameterised query stop SQL injection?</summary>
+          <p>The SQL text is sent and compiled first, with <code>?</code> placeholders, and the values are sent separately. The database never parses the value as SQL, so quotes and keywords inside it are only characters in a string. When you paste input into the SQL string instead, the database parses your input as SQL.</p>
+        </details>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <details>
+          <summary><code>sqlite3: command not found</code></summary>
+            <p>It is not installed, or the terminal was open before you installed it. Follow the install steps in section 1.3 for your system, and open a <strong>new</strong> terminal afterwards. On Windows, check that the folder with <code>sqlite3.exe</code> is on your <code>PATH</code>.</p>
+        </details>
+        <details>
+          <summary><code>FOREIGN KEY constraint failed</code></summary>
+            <p>A row points at a parent that does not exist (for example a task with a <code>user_id</code> nobody has), or you deleted a parent that has children and the foreign key has no <code>ON DELETE</code> rule. Check the id you used. In <code>seed.sql</code>, the users must be inserted before the tasks.</p>
+        </details>
+        <details>
+          <summary>Bad rows are accepted, and nothing is refused</summary>
+            <p><code>PRAGMA foreign_keys</code> is off. It is off for every new connection, so run <code>PRAGMA foreign_keys = ON;</code> at the start of each session. It is the first line of both SQL files.</p>
+        </details>
+        <details>
+          <summary><code>UNIQUE constraint failed</code> when you run the seed again</summary>
+            <p>The rows are already there. The seed does not delete anything. Run <code>.read sql/schema.sql</code> first (it drops and recreates the tables), then <code>.read sql/seed.sql</code>.</p>
+        </details>
+        <details>
+          <summary><code>no such table: tasks</code>, or all the counts are 0</summary>
+            <p>You opened a different database file. <code>sqlite3 data/tasks.db</code> must be run from the repo root. Plain <code>sqlite3</code> with no file name opens a temporary database that is empty. Check you are in the <code>node-js-training</code> folder.</p>
+        </details>
+        <details>
+          <summary><code>ambiguous column name: id</code></summary>
+            <p>You joined two tables that both have an <code>id</code>, and wrote <code>id</code> on its own. Say which one: <code>t.id</code> or <code>u.id</code> (give the tables short names with <code>AS</code>).</p>
+        </details>
+        <details>
+          <summary><code>npm run sql:check</code> says <code>unable to open database file</code></summary>
+            <p>The database does not exist where the script looks: <code>data/tasks.db</code> relative to where you ran the command. Run it from the repo root, and build the database again with <code>.read sql/schema.sql</code> and <code>.read sql/seed.sql</code>.</p>
+        </details>
+        <details>
+          <summary><code>npm run sql:check</code> says <code>Cannot find module 'node:sqlite'</code> or the script does not start</summary>
+            <p><code>node:sqlite</code> is part of Node.js 24, the version this course uses. Check <code>node --version</code> prints a <code>v24</code> version, and if not, run <code>nvm use 24</code>, as in M01.</p>
+        </details>
+        <details>
+          <summary>Every exercise says <code>not written yet</code></summary>
+            <p>The checker only counts SQL written under a line that starts with <code>-- Exercise NN</code>. Check you kept those lines, and that your query is on the lines below, not above or on the same line.</p>
+        </details>
+        <details>
+          <summary>An exercise says <code>FAIL ... the row count is right</code></summary>
+            <p>The rows have the right count but not the right values or order. Check your <code>ORDER BY</code> against the order in the exercise, the columns against the column list (the checker compares by position), and for the joins that you used the join type the exercise names.</p>
+        </details>
+        <details>
+          <summary>The query prints rows with strange <code>|</code> separators and no headings</summary>
+            <p>You are in the default output mode. Run <code>.headers on</code> and <code>.mode column</code> at the start of each session.</p>
+        </details>
+        <details>
+          <summary>The diagram shows as plain text on GitHub</summary>
+            <p>The opening line must be exactly three backticks and the word <code>mermaid</code>, and the block must close with three backticks on a line of their own. A single wrong character in the diagram also stops it from drawing: check each relationship line against the example.</p>
+        </details>
+      </section>
+
+      <section id="done">
+        <h2>You're done when</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="d25"><label for="d25"><code>sql/schema.sql</code> and <code>sql/seed.sql</code> build the database from nothing, and <code>.tables</code> shows the four tables.</label></li>
+          <li><input type="checkbox" id="d26"><label for="d26"><code>npm run sql:check</code> shows <code>24/24 passed</code>: your exercises cover filtering, sorting and pagination, <code>INNER</code> and <code>LEFT</code> joins, <code>GROUP BY</code> with <code>HAVING</code>, and subqueries.</label></li>
+          <li><input type="checkbox" id="d27"><label for="d27">You saw an index turn a <code>SCAN</code> into a <code>SEARCH</code>, and a transaction roll back.</label></li>
+          <li><input type="checkbox" id="d28"><label for="d28">The injection demo returned all the users and the tasks table from the vulnerable query, and 0 rows from the parameterised one.</label></li>
+          <li><input type="checkbox" id="d29"><label for="d29">Your <code>README.md</code> has the Mermaid diagram, it is drawn on GitHub, and it matches the schema.</label></li>
+          <li><input type="checkbox" id="d30"><label for="d30">You can explain primary vs foreign keys, what an index is for, and how to model 1:N vs M:N.</label></li>
+          <li><input type="checkbox" id="d31"><label for="d31">Everything is committed and pushed to your repo.</label></li>
+        </ul>
+        <p>Keep <code>sql/schema.sql</code> and your README diagram as they are. M07 turns this schema into a Prisma schema and a real migration.</p>
+      </section>
+
+<nav class="pager" aria-label="Module navigation">
+        <a href="../m05-express-task-api-v1/index.html">&larr; M05, Express: Routing, Middleware &amp; Error Handling</a>
+        <a href="../../index.html">All modules</a>
+        <span>Next: M07, Prisma ORM &amp; Migrations (coming soon).</span>
+      </nav>
+    </main>
+  </div>
+</body>
+</html>

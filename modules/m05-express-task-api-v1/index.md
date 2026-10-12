@@ -1681,4 +1681,4 @@ The server keeps tasks in memory. A run that stopped halfway can leave a task be
 
 Keep `src/app.ts`, `src/routes/tasks.ts`, `src/errors.ts` and `src/store/tasks.ts` as they are. M07 replaces the store with a database, M08 replaces the validation with Zod, and M09 tests the app you exported.
 
-Previous: [M04, TypeScript Basics & TypeScript on Node.js](../m04-typescript-on-node/index.md). Next: M06, SQL Fundamentals with SQLite (coming soon).
+Previous: [M04, TypeScript Basics & TypeScript on Node.js](../m04-typescript-on-node/index.md). Next: [M06, SQL Fundamentals with SQLite](../m06-sql-fundamentals-sqlite/index.md).
