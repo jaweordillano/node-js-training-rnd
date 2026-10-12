@@ -1,0 +1,1484 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M05 — Express: Routing, Middleware &amp; Error Handling</title>
+  <meta name="description" content="Build Task API v1, an in-memory REST API with Express 5 and TypeScript, with request-ID middleware, one consistent error envelope, hand-written validation and a Bruno collection, in your node-js-training project.">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <a class="back" href="../../index.html">&larr; All modules</a>
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#overview">Overview &amp; time plan</a></li>
+        <li><a href="#s1">1. HTTP, REST and the first Express app</a></li>
+        <li><a href="#s2">2. Routing and the in-memory store</a></li>
+        <li><a href="#s3">3. Middleware: request ID, logging and CORS</a></li>
+        <li><a href="#s4">4. Errors: AppError and the central handler</a></li>
+        <li><a href="#s5">5. Hand-written validation</a></li>
+        <li><a href="#s6">6. Config, health and graceful shutdown</a></li>
+        <li><a href="#s7">7. Bruno collection</a></li>
+        <li><a href="#check">Check your understanding</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#done">You're done when</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Module M05 · Week 2 · Days 3-5 · about 5 hours</p>
+        <h1>Express: Routing, Middleware &amp; Error Handling</h1>
+        <p class="lede">Build Task API v1: a typed Express 5 REST API with middleware, one consistent error format for every failure, hand-written validation, and a Bruno collection that proves it all works.</p>
+      </header>
+
+      <section id="overview">
+        <h2>Overview &amp; time plan</h2>
+        <p><strong>Builds on:</strong> M03 and M04. You need the <code>node-js-training</code> repo with TypeScript set up (<code>npm run typecheck</code> is clean), the Task types in <code>src/domain/task.ts</code>, and a <code>.env</code> file from M03. Everything you write here goes into that same repo, on <code>main</code>, with the add, commit and push steps you know. (The word "module" on this page means the course lessons, M01 to M10, unless it says JavaScript module.)</p>
+        <p>In M03 you wrote a web server with only <code>node:http</code> and felt what hurt: routing by hand, reading the body by hand, one <code>try/catch</code> for every failure. <strong>Express</strong> is the library that removes that pain. In this module you build the <strong>Task API v1</strong>, the API that the rest of the course grows: it gets a database in M07, validation with Zod in M08 and tests in M09.</p>
+        <p>You will build:</p>
+        <ul>
+          <li>an Express 5 app in TypeScript, split into <code>app.ts</code> (builds the app) and <code>server.ts</code> (starts it);</li>
+          <li>five endpoints under <code>/api/v1/tasks</code>, backed by an in-memory store;</li>
+          <li><strong>middleware</strong>: a request ID, a request logger and CORS;</li>
+          <li>an error model where <strong>every</strong> failure, from every endpoint, returns the same JSON shape;</li>
+          <li>hand-written validation (on purpose, so you feel why M08 adds Zod);</li>
+          <li>a <strong>Bruno</strong> collection of requests with assertions that checks every endpoint and every error.</li>
+        </ul>
+        <ol class="plan">
+          <li><a href="#s1">HTTP, REST and the first Express app</a> <span class="time">35 min</span></li>
+          <li><a href="#s2">Routing and the in-memory store</a> <span class="time">60 min</span></li>
+          <li><a href="#s3">Middleware: request ID, logging and CORS</a> <span class="time">45 min</span></li>
+          <li><a href="#s4">Errors: AppError and the central handler</a> <span class="time">50 min</span></li>
+          <li><a href="#s5">Hand-written validation</a> <span class="time">30 min</span></li>
+          <li><a href="#s6">Config, health and graceful shutdown</a> <span class="time">25 min</span></li>
+          <li><a href="#s7">Bruno collection</a> <span class="time">45 min</span></li>
+          <li><a href="#check">Check your understanding</a> <span class="time">10 min</span></li>
+        </ol>
+        <p>This page moves quickly. Type the code in sections 1 to 6 yourself where you can, because the typing is how the middleware and error flow sink in. The long, repetitive files (<code>validation.ts</code> and the Bruno request files) you may paste. Run each step, and compare with the <em>You should see</em> box. Your ids, timestamps and timings will differ from the examples. Commands are written for Git Bash on Windows, and macOS and Linux Terminal. If anything else differs, check <a href="#troubleshooting">Troubleshooting</a>.</p>
+      </section>
+
+      <section id="s1">
+        <h2><span class="num">1.</span>HTTP, REST and the first Express app <span class="time">35 min</span></h2>
+        <h3>1.1 What you need to know about HTTP and REST</h3>
+        <p>An HTTP <strong>request</strong> has a <strong>method</strong>, a <strong>path</strong>, headers and sometimes a body. The <strong>response</strong> has a <strong>status code</strong>, headers and a body. In a <strong>REST</strong> API, the path names a <em>thing</em> (a resource) and the method says what to do with it.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Method</th><th>Meaning</th><th>Safe to repeat?</th></tr></thead>
+            <tbody>
+              <tr><td><code>GET</code></td><td>Read</td><td>Yes</td></tr>
+              <tr><td><code>POST</code></td><td>Create something new</td><td>No: two calls make two things</td></tr>
+              <tr><td><code>PUT</code></td><td>Replace a whole thing</td><td>Yes</td></tr>
+              <tr><td><code>PATCH</code></td><td>Change part of a thing</td><td>Usually</td></tr>
+              <tr><td><code>DELETE</code></td><td>Remove</td><td>Yes: the second call finds nothing, and the end state is the same</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Being safe to repeat is called <strong>idempotent</strong>. It matters because networks fail and clients retry.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Status</th><th>Meaning</th><th>Used here for</th></tr></thead>
+            <tbody>
+              <tr><td><code>200</code></td><td>OK</td><td>A read or an update worked</td></tr>
+              <tr><td><code>201</code></td><td>Created</td><td><code>POST</code> made a task</td></tr>
+              <tr><td><code>204</code></td><td>No content</td><td><code>DELETE</code> worked, nothing to send back</td></tr>
+              <tr><td><code>400</code></td><td>Bad request</td><td>The request is malformed or invalid</td></tr>
+              <tr><td><code>401</code> / <code>403</code></td><td>Not signed in / not allowed</td><td>Not used until the capstone (M10)</td></tr>
+              <tr><td><code>404</code></td><td>Not found</td><td>No such task, or no such route</td></tr>
+              <tr><td><code>409</code></td><td>Conflict</td><td>The request clashes with what exists, such as a duplicate title</td></tr>
+              <tr><td><code>422</code></td><td>Unprocessable</td><td>Some APIs use it for validation errors. This course uses <code>400</code></td></tr>
+              <tr><td><code>500</code></td><td>Server error</td><td>A bug in your code</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Two naming rules: use <strong>plural nouns</strong> for resources (<code>/tasks</code>, not <code>/getTask</code>), and put a <strong>version</strong> in the path (<code>/api/v1/...</code>) so you can change the API later without breaking old clients. Lists often grow a pagination convention such as <code>?limit=20&amp;offset=40</code>. You will not build it here, but you will see it in real APIs.</p>
+        <p>The Task API has these endpoints:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Request</th><th>Result</th></tr></thead>
+            <tbody>
+              <tr><td><code>GET /api/v1/health</code></td><td><code>200</code> <code>{ "status": "ok" }</code></td></tr>
+              <tr><td><code>GET /api/v1/tasks</code></td><td><code>200</code> list of tasks, optionally <code>?status=todo</code></td></tr>
+              <tr><td><code>POST /api/v1/tasks</code></td><td><code>201</code> the new task</td></tr>
+              <tr><td><code>GET /api/v1/tasks/:id</code></td><td><code>200</code> one task</td></tr>
+              <tr><td><code>PATCH /api/v1/tasks/:id</code></td><td><code>200</code> the updated task</td></tr>
+              <tr><td><code>DELETE /api/v1/tasks/:id</code></td><td><code>204</code> no body</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>1.2 Install Express</h3>
+        <pre><code>npm install express@5
+npm install -D @types/express</code></pre>
+        <p><code>express@5</code> is Express 5, the current major version. <code>@types/express</code> gives TypeScript the types for it (section 6 of M04 explained <code>@types/*</code>). Some tutorials online still show Express 4, so if code you find behaves differently, check the version first. The official <a href="https://expressjs.com/en/guide/migrating-5.html">Express 5 migration guide</a> lists every difference. You meet the important ones in section 2.</p>
+        <h3>1.3 Two files: app.ts and server.ts</h3>
+        <p>You build the app in one file, and start it in another:</p>
+        <ul>
+          <li><strong><code>src/app.ts</code></strong> creates the Express app and exports it. It never listens on a port.</li>
+          <li><strong><code>src/server.ts</code></strong> imports the app and calls <code>listen</code>. It is the only file that does.</li>
+        </ul>
+        <p>Why split them? In M09 your tests will <code>import { app }</code> and send requests to it without opening a real port, and this only works if importing the app has no side effect of starting a server.</p>
+        <p>Create <code>src/app.ts</code>:</p>
+        <pre><code>import express from "express";
+
+// Build the app and export it. It never calls listen: server.ts does that.
+export const app = express();
+
+app.get("/api/v1/health", (_req, res) =&gt; {
+  res.json({ status: "ok" });
+});</code></pre>
+        <p>Create <code>src/server.ts</code>:</p>
+        <pre><code>import { app } from "./app.ts";
+
+const PORT = Number(process.env.PORT ?? 3000);
+
+app.listen(PORT, () =&gt; {
+  console.log(`Task API listening on http://localhost:${PORT}`);
+});</code></pre>
+        <p><code>express()</code> creates an app. <code>app.get(path, handler)</code> says "when a GET request arrives for this path, run this function". The handler gets a request (<code>req</code>) and a response (<code>res</code>), and <code>res.json(...)</code> sends JSON with the right header and a <code>200</code> status.</p>
+        <p>Add two scripts. <code>tsx watch</code> restarts the server when you save a file, and <code>--env-file-if-exists</code> loads <code>.env</code> as in M03:</p>
+        <pre><code>npm pkg set scripts.dev="tsx watch --env-file-if-exists=.env src/server.ts"
+npm pkg set scripts.start="tsx --env-file-if-exists=.env src/server.ts"</code></pre>
+        <p>Your <code>.env</code> should contain <code>PORT=4000</code> (you made it in M03). If it does not, create it:</p>
+        <pre><code>echo "PORT=4000" &gt; .env</code></pre>
+        <p>Start the server, and leave it running:</p>
+        <pre><code>npm run dev</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 dev
+&gt; tsx watch --env-file-if-exists=.env src/server.ts
+
+Task API listening on http://localhost:4000</code></pre>
+          <p>The first line shows the <code>name</code> in your <code>package.json</code>.</p>
+        </div>
+        <p>In a <strong>second terminal</strong>, call it. The <code>-w</code> option makes <code>curl</code> print the status code after the body:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" localhost:4000/api/v1/health
+curl -s -w "\nHTTP %{http_code}\n" localhost:4000/nope</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"status":"ok"}
+HTTP 200
+&lt;!DOCTYPE html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;title&gt;Error&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;pre&gt;Cannot GET /nope&lt;/pre&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+
+HTTP 404</code></pre>
+        </div>
+        <p>The second answer is HTML, and an API client expects JSON. Keep that in mind: by the end of section 4, every error will be JSON in one shape.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 1</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c1-1"><label for="c1-1"><code>npm run typecheck</code> is clean.</label></li>
+            <li><input type="checkbox" id="c1-2"><label for="c1-2"><code>curl</code> to <code>/api/v1/health</code> returns <code>{"status":"ok"}</code> with <code>HTTP 200</code>.</label></li>
+            <li><input type="checkbox" id="c1-3"><label for="c1-3">You can say why <code>app.ts</code> never calls <code>listen</code>.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add express app and server"
+git push</code></pre>
+      </section>
+
+      <section id="s2">
+        <h2><span class="num">2.</span>Routing and the in-memory store <span class="time">60 min</span></h2>
+        <h3>2.1 The store</h3>
+        <p>The API needs somewhere to keep tasks. For v1 it is a <code>Map</code> in memory, so the data is gone when the server restarts. In M07 you swap this file for a database, so its functions are <code>async</code> and return promises now, and the rest of the code will not need to change. Create <code>src/store/tasks.ts</code>:</p>
+        <pre><code>import { randomUUID } from "node:crypto";
+import type { CreateTaskInput, Task, TaskStatus, UpdateTaskInput } from "../domain/task.ts";
+
+const tasks = new Map&lt;string, Task&gt;();
+
+// These are async on purpose: M07 swaps this file for a database, and the callers will not change
+export async function listTasks(status?: TaskStatus): Promise&lt;Task[]&gt; {
+  const all = [...tasks.values()];
+  return status ? all.filter((task) =&gt; task.status === status) : all;
+}
+
+export async function getTask(id: string): Promise&lt;Task | undefined&gt; {
+  return tasks.get(id);
+}
+
+export async function createTask(input: CreateTaskInput): Promise&lt;Task&gt; {
+  const now = new Date();
+  const task: Task = { id: randomUUID(), ...input, createdAt: now, updatedAt: now };
+  tasks.set(task.id, task);
+  return task;
+}
+
+export async function updateTask(id: string, changes: UpdateTaskInput): Promise&lt;Task | undefined&gt; {
+  const existing = tasks.get(id);
+  if (!existing) return undefined;
+  const updated: Task = { ...existing, ...changes, updatedAt: new Date() };
+  tasks.set(id, updated);
+  return updated;
+}
+
+export async function deleteTask(id: string): Promise&lt;boolean&gt; {
+  return tasks.delete(id);
+}</code></pre>
+        <p>It uses the types you built in M04: <code>Task</code>, <code>CreateTaskInput</code>, <code>UpdateTaskInput</code> and <code>TaskStatus</code>. The store sets the <code>id</code> and the timestamps, so a client never does.</p>
+        <h3>2.2 The routes</h3>
+        <p>A <strong>router</strong> is a mini app that owns a group of routes, so <code>app.ts</code> does not fill up. Create <code>src/routes/tasks.ts</code>:</p>
+        <pre><code>import { Router } from "express";
+import type { Request, Response } from "express";
+import type { CreateTaskInput, Task, UpdateTaskInput } from "../domain/task.ts";
+import * as store from "../store/tasks.ts";
+
+export const tasksRouter = Router();
+
+// Request&lt;Params, ResBody, ReqBody, Query&gt;
+tasksRouter.get("/", async (_req: Request, res: Response&lt;Task[]&gt;) =&gt; {
+  res.json(await store.listTasks());
+});
+
+tasksRouter.post("/", async (req: Request&lt;{}, Task, CreateTaskInput&gt;, res: Response&lt;Task&gt;) =&gt; {
+  const task = await store.createTask(req.body);
+  res.status(201).json(task);
+});
+
+tasksRouter.get("/:id", async (req: Request&lt;{ id: string }&gt;, res: Response&lt;Task | { error: string }&gt;) =&gt; {
+  const task = await store.getTask(req.params.id);
+  if (!task) {
+    res.status(404).json({ error: "Task not found" });
+    return;
+  }
+  res.json(task);
+});
+
+tasksRouter.patch(
+  "/:id",
+  async (req: Request&lt;{ id: string }, Task, UpdateTaskInput&gt;, res: Response&lt;Task | { error: string }&gt;) =&gt; {
+    const task = await store.updateTask(req.params.id, req.body);
+    if (!task) {
+      res.status(404).json({ error: "Task not found" });
+      return;
+    }
+    res.json(task);
+  },
+);
+
+tasksRouter.delete("/:id", async (req: Request&lt;{ id: string }&gt;, res: Response&lt;{ error: string } | undefined&gt;) =&gt; {
+  if (!(await store.deleteTask(req.params.id))) {
+    res.status(404).json({ error: "Task not found" });
+    return;
+  }
+  res.sendStatus(204);
+});</code></pre>
+        <p>Update <code>src/app.ts</code> to use it:</p>
+        <pre><code>import express from "express";
+import { tasksRouter } from "./routes/tasks.ts";
+
+// Build the app and export it. It never calls listen: server.ts does that.
+export const app = express();
+
+app.use(express.json());
+
+app.get("/api/v1/health", (_req, res) =&gt; {
+  res.json({ status: "ok" });
+});
+app.use("/api/v1/tasks", tasksRouter);</code></pre>
+        <p>What is new:</p>
+        <ul>
+          <li><strong><code>express.json()</code></strong> is <em>middleware</em> that reads a JSON request body and puts the result in <code>req.body</code>. Without it, <code>req.body</code> is <code>undefined</code>.</li>
+          <li><strong><code>app.use("/api/v1/tasks", tasksRouter)</code></strong> mounts the router. The routes inside are relative to that path: <code>"/"</code> is <code>/api/v1/tasks</code> and <code>"/:id"</code> is <code>/api/v1/tasks/&lt;id&gt;</code>.</li>
+          <li><strong><code>:id</code></strong> is a route parameter. Its value arrives in <code>req.params.id</code>.</li>
+          <li><strong><code>Request&lt;Params, ResBody, ReqBody, Query&gt;</code></strong> is how you type a handler: the shape of <code>req.params</code>, of the response body, of <code>req.body</code>, and of <code>req.query</code>. <code>{}</code> means "no route parameters".</li>
+          <li><strong><code>res.status(201).json(task)</code></strong> sets the status and sends JSON. <strong><code>res.sendStatus(204)</code></strong> sends a status with its standard text and no body.</li>
+          <li><strong><code>async</code> handlers</strong>: a handler may return a promise. You will see in section 2.4 what happens when it fails.</li>
+        </ul>
+        <p>Save, and let <code>tsx watch</code> restart. Create a task, and read it back:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{"title":"Learn Express","status":"todo"}'
+curl -s -w "\nHTTP %{http_code}\n" localhost:4000/api/v1/tasks</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"id":"53fe34d3-6d55-42d6-abfb-653ae18331cb","title":"Learn Express","status":"todo","createdAt":"2026-10-12T12:52:11.950Z","updatedAt":"2026-10-12T12:52:11.950Z"}
+HTTP 201
+[{"id":"53fe34d3-6d55-42d6-abfb-653ae18331cb","title":"Learn Express","status":"todo","createdAt":"2026-10-12T12:52:11.950Z","updatedAt":"2026-10-12T12:52:11.950Z"}]
+HTTP 200</code></pre>
+          <p>Your <code>id</code> and timestamps are different. Dates become ISO text in JSON.</p>
+        </div>
+        <p>Use the <code>id</code> from your own output for the next calls (write it in place of <code>&lt;id&gt;</code>):</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" localhost:4000/api/v1/tasks/&lt;id&gt;
+curl -s -w "\nHTTP %{http_code}\n" -X PATCH localhost:4000/api/v1/tasks/&lt;id&gt; -H "Content-Type: application/json" -d '{"status":"done"}'
+curl -s -w "\nHTTP %{http_code}\n" -X DELETE localhost:4000/api/v1/tasks/&lt;id&gt;
+curl -s -w "\nHTTP %{http_code}\n" localhost:4000/api/v1/tasks/&lt;id&gt;</code></pre>
+        <p>You should see the task with <code>HTTP 200</code>, then the same task with <code>"status":"done"</code> and a newer <code>updatedAt</code> (<code>HTTP 200</code>), then an empty body with <code>HTTP 204</code>, and last <code>{"error":"Task not found"}</code> with <code>HTTP 404</code>.</p>
+        <h3>2.3 What this version gets wrong</h3>
+        <p>Now send two bad requests:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{"status":"banana"}'
+curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"id":"784e8fc8-331f-4e35-aa94-70a993d6bcae","status":"banana","createdAt":"2026-10-12T12:52:11.977Z","updatedAt":"2026-10-12T12:52:11.977Z"}
+HTTP 201
+{"id":"b7542c1b-bc08-4486-9eaf-a578eb145ba5","createdAt":"2026-10-12T12:52:11.993Z","updatedAt":"2026-10-12T12:52:11.993Z"}
+HTTP 201</code></pre>
+        </div>
+        <p>A task with no title, and a status of <code>banana</code>, and the API said <code>201 Created</code>. The type <code>Request&lt;{}, Task, CreateTaskInput&gt;</code> <em>says</em> the body is a <code>CreateTaskInput</code>, but Express never checks it: types disappear at runtime (M04). Real input needs real checks, and you add them in section 5. Also notice the <code>404</code> answer is <code>{"error":"Task not found"}</code>, a different shape than any other error will have. Section 4 fixes that.</p>
+        <h3>2.4 What changed in Express 5</h3>
+        <p>Express 5 changed several things from Express 4. Create <code>src/labs/express5.ts</code> to see them run:</p>
+        <pre><code>import express from "express";
+
+// 1. The old "*" path pattern is gone. Express 5 wants a name: "*splat".
+try {
+  express().get("/files/*", () =&gt; {});
+} catch (error) {
+  console.log("old pattern:", (error as Error).message);
+}
+
+const app = express();
+app.get("/files/*splat", (req, res) =&gt; {
+  res.json({ splat: req.params.splat }); // an array of path segments
+});
+
+// 2. Optional segments use braces: /report{.json} matches both /report and /report.json
+app.get("/report{.json}", (_req, res) =&gt; {
+  res.send("report");
+});
+
+// 3. Without express.json(), req.body is undefined (Express 4 gave {})
+app.post("/echo", (req, res) =&gt; {
+  res.json({ bodyIsUndefined: req.body === undefined });
+});
+
+// 4. req.query is a read-only getter: you cannot assign to it
+app.get("/query", (req, res) =&gt; {
+  try {
+    (req as { query: unknown }).query = {};
+  } catch (error) {
+    res.json({ assigning: (error as Error).constructor.name });
+    return;
+  }
+  res.json({ assigning: "worked" });
+});
+
+// 5. A rejected promise in an async handler reaches the error handler by itself
+app.get("/boom", async () =&gt; {
+  throw new Error("boom");
+});
+app.use(((error, _req, res, _next) =&gt; {
+  res.status(500).json({ caught: (error as Error).message });
+}) satisfies express.ErrorRequestHandler);
+
+const server = app.listen(0, async () =&gt; {
+  const { port } = server.address() as { port: number };
+  const get = async (path: string, init?: RequestInit) =&gt;
+    console.log(path, "-&gt;", await (await fetch(`http://localhost:${port}${path}`, init)).text());
+
+  await get("/files/a/b/c");
+  await get("/report");
+  await get("/report.json");
+  await get("/echo", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  await get("/query");
+  await get("/boom");
+  server.close();
+});</code></pre>
+        <pre><code>npx tsx src/labs/express5.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>old pattern: Missing parameter name at index 8: /files/*; visit https://git.new/pathToRegexpError for info
+/files/a/b/c -&gt; {"splat":["a","b","c"]}
+/report -&gt; report
+/report.json -&gt; report
+/echo -&gt; {"bodyIsUndefined":true}
+/query -&gt; {"assigning":"TypeError"}
+/boom -&gt; {"caught":"boom"}</code></pre>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Express 5</th><th>What you saw</th></tr></thead>
+            <tbody>
+              <tr><td><strong>New path syntax.</strong> A bare <code>*</code> is gone: write <code>*splat</code> (a named wildcard), and optional parts use braces, <code>/report{.json}</code>.</td><td>The old pattern throws when you register it. <code>/files/*splat</code> captured the rest of the path as an array.</td></tr>
+              <tr><td><strong><code>req.body</code> is <code>undefined</code> with no body parser.</strong> Express 4 gave <code>{}</code>.</td><td>Always treat <code>req.body</code> as <code>unknown</code> and check it (section 5).</td></tr>
+              <tr><td><strong><code>req.query</code> is a read-only getter.</strong></td><td>Assigning to it throws a <code>TypeError</code>. Read it, never replace it.</td></tr>
+              <tr><td><strong>Rejected promises are forwarded to the error handler.</strong></td><td><code>/boom</code> is an <code>async</code> handler that throws, and the error handler caught it. In Express 4 you needed a <code>try/catch</code> with <code>next(error)</code> in every async handler, or the request hung.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>That last row is why none of your handlers has a <code>try/catch</code>: if a handler throws or its promise rejects, Express passes the error on by itself. You use that in section 4. You can delete <code>src/labs/express5.ts</code> or keep it for reference.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 2</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c2-4"><label for="c2-4">All five task endpoints answered as above, and <code>npm run typecheck</code> is clean.</label></li>
+            <li><input type="checkbox" id="c2-5"><label for="c2-5">You saw the API accept a task with no title, and you can say why.</label></li>
+            <li><input type="checkbox" id="c2-6"><label for="c2-6">You can say how Express 5 handles an <code>async</code> handler that throws.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add task routes and in-memory store"
+git push</code></pre>
+      </section>
+
+      <section id="s3">
+        <h2><span class="num">3.</span>Middleware: request ID, logging and CORS <span class="time">45 min</span></h2>
+        <h3>3.1 The pipeline</h3>
+        <p>A request does not go straight to your handler. It passes through a line of functions, from the top of <code>app.ts</code> down, and each one can look at it, change it, answer it, or hand it on. A function in that line is <strong>middleware</strong>. It receives <code>(req, res, next)</code>:</p>
+        <ul>
+          <li><strong><code>next()</code></strong> passes the request to the next function.</li>
+          <li><strong><code>next(error)</code></strong> skips ahead to the error handler (section 4).</li>
+          <li>If it answers (<code>res.json(...)</code>), the request stops there.</li>
+        </ul>
+        <p><code>express.json()</code> was middleware, and so is each route handler. The <strong>order</strong> you register them in is the order they run, so order matters, and you will break it on purpose in section 3.3.</p>
+        <h3>3.2 Request ID, logging and CORS</h3>
+        <p>Create <code>src/middleware/request-id.ts</code>. It gives each request an id, so a log line and an error answer can be matched later:</p>
+        <pre><code>import { randomUUID } from "node:crypto";
+import type { RequestHandler } from "express";
+
+// Give every request an id, so a log line and an error response can be matched
+export const requestId: RequestHandler = (req, res, next) =&gt; {
+  const id = req.get("x-request-id") ?? randomUUID();
+  res.locals.requestId = id;
+  res.setHeader("X-Request-Id", id);
+  next();
+};</code></pre>
+        <p>Create <code>src/middleware/logger.ts</code>. It logs one line per request, when the response is finished:</p>
+        <pre><code>import type { RequestHandler } from "express";
+
+export const requestLogger: RequestHandler = (req, res, next) =&gt; {
+  const start = Date.now();
+  // "finish" fires after the response has been sent, so we know the status
+  res.on("finish", () =&gt; {
+    const ms = Date.now() - start;
+    console.log(`${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms ${res.locals.requestId}`);
+  });
+  next();
+};</code></pre>
+        <p><code>res.locals</code> is a place to keep values for the life of one request. The logger listens for <code>finish</code> because only then does it know the status code and the time taken.</p>
+        <p><strong>CORS</strong> is a browser rule: a web page from one address may not call an API on another address unless the API says it may. The <code>cors</code> package adds the headers that say so. Install it:</p>
+        <pre><code>npm install cors
+npm install -D @types/cors</code></pre>
+        <p>Update <code>src/app.ts</code> so the middleware runs first, before everything else:</p>
+        <pre><code>import cors from "cors";
+import express from "express";
+import { requestLogger } from "./middleware/logger.ts";
+import { requestId } from "./middleware/request-id.ts";
+import { tasksRouter } from "./routes/tasks.ts";
+
+// Build the app and export it. It never calls listen: server.ts does that.
+export const app = express();
+
+// Order matters: each request passes through these from top to bottom
+app.use(requestId);
+app.use(requestLogger);
+app.use(cors());
+app.use(express.json());
+
+app.get("/api/v1/health", (_req, res) =&gt; {
+  res.json({ status: "ok" });
+});
+app.use("/api/v1/tasks", tasksRouter);</code></pre>
+        <p>Save, and call the API:</p>
+        <pre><code>curl -s -i localhost:4000/api/v1/health
+curl -s -i -H "Origin: http://example.com" localhost:4000/api/v1/health</code></pre>
+        <p>In the first answer, look for <code>X-Request-Id</code>. In the second, look for <code>Access-Control-Allow-Origin</code>. Your server terminal should print one line per request:</p>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>GET /api/v1/health 200 8ms 5e334c43-23da-46ca-aa9f-a0361f870505
+GET /api/v1/health 200 1ms 8b74ba93-d049-4d49-b17b-884cafded141</code></pre>
+          <p>The answers carry <code>X-Request-Id: 5e334c43-...</code> (the same id as the log line) and, for the second call, <code>Access-Control-Allow-Origin: *</code>. <code>cors()</code> with no options allows every address. A real API names the addresses it trusts.</p>
+        </div>
+        <h3>3.3 Break the order on purpose</h3>
+        <p>In <code>src/app.ts</code>, move the line <code>app.use(express.json());</code> to <em>below</em> the line <code>app.use("/api/v1/tasks", tasksRouter);</code>. Save, and create a task with a perfectly valid body:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{"title":"Learn Express","status":"todo"}'</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"id":"d3a1c7b5-dea6-4ce1-aa92-e6858fb36f4f","createdAt":"2026-10-12T12:52:29.558Z","updatedAt":"2026-10-12T12:52:29.558Z"}
+HTTP 201</code></pre>
+        </div>
+        <p>The request reached the route handler before <code>express.json()</code> had read the body, so <code>req.body</code> was <code>undefined</code> and the task has no title. Nothing crashed, and nothing told you. That is the kind of bug that order causes. Put the line back where it was.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 3</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c3-7"><label for="c3-7">Every request prints one log line, and the response has an <code>X-Request-Id</code> header with the same id.</label></li>
+            <li><input type="checkbox" id="c3-8"><label for="c3-8">You broke the order, saw the task with no title, and put the line back.</label></li>
+            <li><input type="checkbox" id="c3-9"><label for="c3-9">You can say what <code>next()</code> does, and why middleware order matters.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add request id, logging and cors middleware"
+git push</code></pre>
+      </section>
+
+      <section id="s4">
+        <h2><span class="num">4.</span>Errors: AppError and the central handler <span class="time">50 min</span></h2>
+        <h3>4.1 One error shape for everything</h3>
+        <p>The problem from sections 1 and 2: errors come back in different shapes, one is HTML, and a <code>500</code> could even leak your code. A client should only have to understand <strong>one</strong> error format. This is the format for the whole course. Every error, from every endpoint, looks like this:</p>
+        <pre><code>{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Request validation failed",
+    "details": [{ "path": "title", "message": "Required" }],
+    "requestId": "5e334c43-23da-46ca-aa9f-a0361f870505"
+  }
+}</code></pre>
+        <p><code>code</code> is a stable, machine-readable name (a client can <code>switch</code> on it), <code>message</code> is for people, <code>details</code> appears only for validation errors, and <code>requestId</code> is the id from section 3, so a user can quote it and you can find the log line.</p>
+        <p>The plan: when something goes wrong, <strong>throw a typed error</strong>. One <strong>central error handler</strong> at the end of the pipeline catches everything and writes the envelope. Handlers stay short, and the format lives in exactly one place.</p>
+        <h3>4.2 Operational errors vs programmer errors</h3>
+        <ul>
+          <li>An <strong>operational error</strong> is something that can happen in a correct program: a task that does not exist, a bad request, a duplicate title. You know what to tell the client, so you give each one a class, a status and a code.</li>
+          <li>A <strong>programmer error</strong> is a bug: reading a property of <code>undefined</code>, a typo. You do not know what went wrong, and the client must not see the details. The handler answers <code>500</code> with a generic message, and logs the real error for you.</li>
+        </ul>
+        <p>Create <code>src/errors.ts</code>:</p>
+        <pre><code>export interface ErrorDetail {
+  path: string;
+  message: string;
+}
+
+// An error we expected and know how to describe to the client
+export class AppError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly details: ErrorDetail[] | undefined;
+
+  constructor(status: number, code: string, message: string, details?: ErrorDetail[]) {
+    super(message);
+    this.name = new.target.name;
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
+export class BadRequestError extends AppError {
+  constructor(message = "Bad request") {
+    super(400, "BAD_REQUEST", message);
+  }
+}
+
+export class ValidationError extends AppError {
+  constructor(details: ErrorDetail[]) {
+    super(400, "VALIDATION_ERROR", "Request validation failed", details);
+  }
+}
+
+export class NotFoundError extends AppError {
+  constructor(message = "Not found") {
+    super(404, "NOT_FOUND", message);
+  }
+}
+
+export class ConflictError extends AppError {
+  constructor(message = "Conflict") {
+    super(409, "CONFLICT", message);
+  }
+}</code></pre>
+        <p><code>AppError</code> carries a status, a code and optional details, and each subclass fixes the status and code. This module has <code>erasableSyntaxOnly</code> on (M04), so the fields are declared and assigned by hand and not with constructor parameter properties.</p>
+        <p>Create <code>src/middleware/errors.ts</code>:</p>
+        <pre><code>import type { ErrorRequestHandler, RequestHandler } from "express";
+import { AppError, NotFoundError } from "../errors.ts";
+
+// Runs only when no route matched
+export const notFound: RequestHandler = (req, _res, next) =&gt; {
+  next(new NotFoundError(`Route ${req.method} ${req.originalUrl} not found`));
+};
+
+// express.json() reports a body that is not valid JSON with this shape
+function isBodyParseError(error: unknown): boolean {
+  return typeof error === "object" &amp;&amp; error !== null &amp;&amp; "type" in error &amp;&amp; error.type === "entity.parse.failed";
+}
+
+// Four arguments: this is how Express knows it is the error handler
+export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, next) =&gt; {
+  if (res.headersSent) return next(error);
+
+  let status = 500;
+  let code = "INTERNAL_ERROR";
+  let message = "Internal server error"; // never leak the real message of a bug
+  let details;
+
+  if (error instanceof AppError) {
+    ({ status, code, message, details } = error);
+  } else if (isBodyParseError(error)) {
+    status = 400;
+    code = "BAD_REQUEST";
+    message = "Request body is not valid JSON";
+  } else {
+    console.error(error); // a programmer error: log it, do not send it
+  }
+
+  res.status(status).json({
+    error: {
+      code,
+      message,
+      ...(details ? { details } : {}),
+      requestId: res.locals.requestId,
+    },
+  });
+};</code></pre>
+        <ul>
+          <li><strong><code>notFound</code></strong> runs only if no route answered. It does not answer itself: it calls <code>next(new NotFoundError(...))</code>.</li>
+          <li><strong><code>errorHandler</code></strong> has <strong>four</strong> parameters. That is how Express knows it is an error handler, so keep all four even though <code>_next</code> is unused here. It turns an <code>AppError</code> into the envelope, handles the invalid-JSON error that <code>express.json()</code> reports, and treats everything else as a bug: log it, and send a generic <code>500</code>.</li>
+          <li><code>res.headersSent</code> guards the case where a response has already started, which is the one case Express wants you to pass the error on.</li>
+        </ul>
+        <p>Now register them. They go at the <strong>end</strong>, after all the routes. Replace <code>src/app.ts</code>:</p>
+        <pre><code>import cors from "cors";
+import express from "express";
+import { errorHandler, notFound } from "./middleware/errors.ts";
+import { requestLogger } from "./middleware/logger.ts";
+import { requestId } from "./middleware/request-id.ts";
+import { tasksRouter } from "./routes/tasks.ts";
+
+// Build the app and export it. It never calls listen: server.ts does that.
+export const app = express();
+
+// Order matters: each request passes through these from top to bottom
+app.use(requestId);
+app.use(requestLogger);
+app.use(cors());
+app.use(express.json());
+
+app.get("/api/v1/health", (_req, res) =&gt; {
+  res.json({ status: "ok" });
+});
+app.use("/api/v1/tasks", tasksRouter);
+
+app.use(notFound);
+app.use(errorHandler);</code></pre>
+        <p>And replace the not-found answers in <code>src/routes/tasks.ts</code> with thrown errors. Replace the whole file:</p>
+        <pre><code>import { Router } from "express";
+import type { Request, Response } from "express";
+import type { CreateTaskInput, Task, UpdateTaskInput } from "../domain/task.ts";
+import { NotFoundError } from "../errors.ts";
+import * as store from "../store/tasks.ts";
+
+export const tasksRouter = Router();
+
+// Request&lt;Params, ResBody, ReqBody, Query&gt;
+tasksRouter.get("/", async (_req: Request, res: Response&lt;Task[]&gt;) =&gt; {
+  res.json(await store.listTasks());
+});
+
+tasksRouter.post("/", async (req: Request&lt;{}, Task, CreateTaskInput&gt;, res: Response&lt;Task&gt;) =&gt; {
+  const task = await store.createTask(req.body);
+  res.status(201).json(task);
+});
+
+tasksRouter.get("/:id", async (req: Request&lt;{ id: string }&gt;, res: Response&lt;Task&gt;) =&gt; {
+  const task = await store.getTask(req.params.id);
+  if (!task) throw new NotFoundError(`Task ${req.params.id} not found`);
+  res.json(task);
+});
+
+tasksRouter.patch("/:id", async (req: Request&lt;{ id: string }, Task, UpdateTaskInput&gt;, res: Response&lt;Task&gt;) =&gt; {
+  const task = await store.updateTask(req.params.id, req.body);
+  if (!task) throw new NotFoundError(`Task ${req.params.id} not found`);
+  res.json(task);
+});
+
+tasksRouter.delete("/:id", async (req: Request&lt;{ id: string }&gt;, res: Response) =&gt; {
+  if (!(await store.deleteTask(req.params.id))) {
+    throw new NotFoundError(`Task ${req.params.id} not found`);
+  }
+  res.sendStatus(204);
+});</code></pre>
+        <p>The handlers got shorter: no <code>res.status(404).json(...)</code>, no early return. They <code>throw</code>, and Express forwards it, because async handlers are handled by Express 5.</p>
+        <h3>4.3 See it work</h3>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" localhost:4000/api/v1/nope
+curl -s -w "\nHTTP %{http_code}\n" localhost:4000/api/v1/tasks/abc
+curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{oops'
+curl -s -w "\nHTTP %{http_code}\n" -H "X-Request-Id: my-trace-1" localhost:4000/api/v1/nope</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"error":{"code":"NOT_FOUND","message":"Route GET /api/v1/nope not found","requestId":"bc9d7817-d447-42f8-b6d7-0f94906393e1"}}
+HTTP 404
+{"error":{"code":"NOT_FOUND","message":"Task abc not found","requestId":"c3637ec4-52a0-4889-89a1-157c7f2712c0"}}
+HTTP 404
+{"error":{"code":"BAD_REQUEST","message":"Request body is not valid JSON","requestId":"c3a16c1e-2f6a-4ace-8b11-a7a29d12f20a"}}
+HTTP 400
+{"error":{"code":"NOT_FOUND","message":"Route GET /api/v1/nope not found","requestId":"my-trace-1"}}
+HTTP 404</code></pre>
+          <p>The last call sent its own request id, and the middleware used it.</p>
+        </div>
+        <h3>4.4 A programmer error</h3>
+        <p>Prove that a bug never leaks. Add a temporary route to <code>src/app.ts</code>, <strong>above</strong> <code>app.use(notFound);</code>:</p>
+        <pre><code>app.get("/api/v1/boom", async () =&gt; {
+  throw new Error("boom");
+});</code></pre>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" localhost:4000/api/v1/boom</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"error":{"code":"INTERNAL_ERROR","message":"Internal server error","requestId":"fd0bd493-d9c8-4aea-a025-ed0e6b7e0cd7"}}
+HTTP 500</code></pre>
+          <p>In the <strong>server</strong> terminal you will see the real error, <code>Error: boom</code> and a stack trace, which is where you read bugs. The client got no stack trace and no message from your code.</p>
+        </div>
+        <p>Delete the <code>/boom</code> route again.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 4</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c4-10"><label for="c4-10">Unknown routes, unknown tasks and invalid JSON all return the envelope, with a real <code>requestId</code>.</label></li>
+            <li><input type="checkbox" id="c4-11"><label for="c4-11"><code>/boom</code> gave a generic <code>500</code>, and the real error appeared only in the server terminal.</label></li>
+            <li><input type="checkbox" id="c4-12"><label for="c4-12">You can say the difference between an operational error and a programmer error.</label></li>
+            <li><input type="checkbox" id="c4-13"><label for="c4-13">You can say what makes a function an Express error handler.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add apperror classes and central error handler"
+git push</code></pre>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>Hand-written validation <span class="time">30 min</span></h2>
+        <p>Section 2 showed the API accepting a task with no title. You now add checks, by hand. Libraries do this better, and M08 replaces your code with Zod. Writing it yourself first is on purpose: when you see how much code it takes, and how easy it is to miss a case, the library earns its place.</p>
+        <p>The rules for v1:</p>
+        <ul>
+          <li><code>title</code>: required on create, a non-empty string, at most 100 characters.</li>
+          <li><code>description</code>: optional, a string.</li>
+          <li><code>status</code>: optional on create (it defaults to <code>"todo"</code>), and one of <code>todo</code>, <code>in_progress</code>, <code>done</code>.</li>
+          <li><code>PATCH</code> needs at least one of these fields.</li>
+          <li><code>GET /tasks?status=...</code> must use a valid status.</li>
+          <li>Creating a task whose title already exists (ignoring case) is a conflict, <code>409</code>.</li>
+        </ul>
+        <p>Validation failures use <code>400</code>, the code <code>VALIDATION_ERROR</code>, and a <code>details</code> list that names each bad field. Create <code>src/validation.ts</code>:</p>
+        <pre><code>import { taskStatuses } from "./domain/task.ts";
+import type { CreateTaskInput, TaskStatus, UpdateTaskInput } from "./domain/task.ts";
+import { ValidationError } from "./errors.ts";
+import type { ErrorDetail } from "./errors.ts";
+
+const isStatus = (value: unknown): value is TaskStatus =&gt;
+  typeof value === "string" &amp;&amp; (taskStatuses as readonly string[]).includes(value);
+
+// Each check adds a problem to the list. At the end, one error carries all of them.
+function checkFields(body: Record&lt;string, unknown&gt;, details: ErrorDetail[]): void {
+  if ("title" in body) {
+    if (typeof body.title !== "string" || body.title.trim() === "") {
+      details.push({ path: "title", message: "Must be a non-empty string" });
+    } else if (body.title.length &gt; 100) {
+      details.push({ path: "title", message: "Must be 100 characters or fewer" });
+    }
+  }
+  if ("description" in body &amp;&amp; typeof body.description !== "string") {
+    details.push({ path: "description", message: "Must be a string" });
+  }
+  if ("status" in body &amp;&amp; !isStatus(body.status)) {
+    details.push({ path: "status", message: `Must be one of: ${taskStatuses.join(", ")}` });
+  }
+}
+
+// req.body is undefined when no body was sent, so treat the input as unknown
+function asObject(body: unknown): Record&lt;string, unknown&gt; {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    throw new ValidationError([{ path: "body", message: "Must be a JSON object" }]);
+  }
+  return body as Record&lt;string, unknown&gt;;
+}
+
+export function validateCreateTask(body: unknown): CreateTaskInput {
+  const data = asObject(body);
+  const details: ErrorDetail[] = [];
+  if (!("title" in data)) details.push({ path: "title", message: "Required" });
+  checkFields(data, details);
+  if (details.length &gt; 0) throw new ValidationError(details);
+
+  const input: CreateTaskInput = {
+    title: (data.title as string).trim(),
+    status: isStatus(data.status) ? data.status : "todo",
+  };
+  if (typeof data.description === "string") input.description = data.description;
+  return input;
+}
+
+export function validateUpdateTask(body: unknown): UpdateTaskInput {
+  const data = asObject(body);
+  const details: ErrorDetail[] = [];
+  checkFields(data, details);
+  const hasAny = ["title", "description", "status"].some((key) =&gt; key in data);
+  if (!hasAny &amp;&amp; details.length === 0) {
+    details.push({ path: "body", message: "Send at least one of: title, description, status" });
+  }
+  if (details.length &gt; 0) throw new ValidationError(details);
+
+  const changes: UpdateTaskInput = {};
+  if (typeof data.title === "string") changes.title = data.title.trim();
+  if (typeof data.description === "string") changes.description = data.description;
+  if (isStatus(data.status)) changes.status = data.status;
+  return changes;
+}
+
+export function validateStatusQuery(value: unknown): TaskStatus | undefined {
+  if (value === undefined) return undefined;
+  if (!isStatus(value)) {
+    throw new ValidationError([{ path: "status", message: `Must be one of: ${taskStatuses.join(", ")}` }]);
+  }
+  return value;
+}</code></pre>
+        <p>Notes on the code:</p>
+        <ul>
+          <li>Each function takes <code>body: unknown</code>, because <code>req.body</code> could be anything, or <code>undefined</code> (section 2.4). It checks first, and only then returns a properly typed value.</li>
+          <li>It collects <strong>all</strong> the problems into <code>details</code> and throws once, so a client sees every mistake in one response.</li>
+          <li><code>isStatus</code> is a type guard (M04). <code>taskStatuses</code> is the list you made in M04, so the allowed values live in one place.</li>
+        </ul>
+        <p>The conflict check needs the store to find a task by title. Replace <code>src/store/tasks.ts</code> (it adds <code>findTaskByTitle</code>):</p>
+        <pre><code>import { randomUUID } from "node:crypto";
+import type { CreateTaskInput, Task, TaskStatus, UpdateTaskInput } from "../domain/task.ts";
+
+const tasks = new Map&lt;string, Task&gt;();
+
+// These are async on purpose: M07 swaps this file for a database, and the callers will not change
+export async function listTasks(status?: TaskStatus): Promise&lt;Task[]&gt; {
+  const all = [...tasks.values()];
+  return status ? all.filter((task) =&gt; task.status === status) : all;
+}
+
+export async function getTask(id: string): Promise&lt;Task | undefined&gt; {
+  return tasks.get(id);
+}
+
+export async function findTaskByTitle(title: string): Promise&lt;Task | undefined&gt; {
+  return [...tasks.values()].find((task) =&gt; task.title.toLowerCase() === title.toLowerCase());
+}
+
+export async function createTask(input: CreateTaskInput): Promise&lt;Task&gt; {
+  const now = new Date();
+  const task: Task = { id: randomUUID(), ...input, createdAt: now, updatedAt: now };
+  tasks.set(task.id, task);
+  return task;
+}
+
+export async function updateTask(id: string, changes: UpdateTaskInput): Promise&lt;Task | undefined&gt; {
+  const existing = tasks.get(id);
+  if (!existing) return undefined;
+  const updated: Task = { ...existing, ...changes, updatedAt: new Date() };
+  tasks.set(id, updated);
+  return updated;
+}
+
+export async function deleteTask(id: string): Promise&lt;boolean&gt; {
+  return tasks.delete(id);
+}</code></pre>
+        <p>And replace <code>src/routes/tasks.ts</code> with the final version, which validates and checks for conflicts:</p>
+        <pre><code>import { Router } from "express";
+import type { Request, Response } from "express";
+import type { Task } from "../domain/task.ts";
+import { ConflictError, NotFoundError } from "../errors.ts";
+import * as store from "../store/tasks.ts";
+import { validateCreateTask, validateStatusQuery, validateUpdateTask } from "../validation.ts";
+
+export const tasksRouter = Router();
+
+// Request&lt;Params, ResBody, ReqBody, Query&gt;
+tasksRouter.get("/", async (req: Request&lt;{}, Task[], unknown, { status?: string }&gt;, res: Response&lt;Task[]&gt;) =&gt; {
+  const status = validateStatusQuery(req.query.status);
+  res.json(await store.listTasks(status));
+});
+
+tasksRouter.post("/", async (req: Request&lt;{}, Task, unknown&gt;, res: Response&lt;Task&gt;) =&gt; {
+  const input = validateCreateTask(req.body);
+  if (await store.findTaskByTitle(input.title)) {
+    throw new ConflictError(`A task titled "${input.title}" already exists`);
+  }
+  res.status(201).json(await store.createTask(input));
+});
+
+tasksRouter.get("/:id", async (req: Request&lt;{ id: string }&gt;, res: Response&lt;Task&gt;) =&gt; {
+  const task = await store.getTask(req.params.id);
+  if (!task) throw new NotFoundError(`Task ${req.params.id} not found`);
+  res.json(task);
+});
+
+tasksRouter.patch("/:id", async (req: Request&lt;{ id: string }, Task, unknown&gt;, res: Response&lt;Task&gt;) =&gt; {
+  const changes = validateUpdateTask(req.body);
+  const task = await store.updateTask(req.params.id, changes);
+  if (!task) throw new NotFoundError(`Task ${req.params.id} not found`);
+  res.json(task);
+});
+
+tasksRouter.delete("/:id", async (req: Request&lt;{ id: string }&gt;, res: Response) =&gt; {
+  if (!(await store.deleteTask(req.params.id))) {
+    throw new NotFoundError(`Task ${req.params.id} not found`);
+  }
+  res.sendStatus(204);
+});</code></pre>
+        <p>Try the good and the bad:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{"title":"Write M05"}'
+curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{"title":"write m05"}'
+curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{"title":"","status":"archived"}'
+curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks
+curl -s -w "\nHTTP %{http_code}\n" "localhost:4000/api/v1/tasks?status=nope"</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"id":"37644e9f-c789-4e36-90a9-cdb0b9a23e8e","title":"Write M05","status":"todo","createdAt":"2026-10-12T12:47:38.392Z","updatedAt":"2026-10-12T12:47:38.392Z"}
+HTTP 201
+{"error":{"code":"CONFLICT","message":"A task titled \"write m05\" already exists","requestId":"b4a34d35-8177-4d17-a42d-c4c3d2a8b7c5"}}
+HTTP 409
+{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":[{"path":"title","message":"Must be a non-empty string"},{"path":"status","message":"Must be one of: todo, in_progress, done"}],"requestId":"53c61d55-921a-4ab2-8fab-9f7091cfb436"}}
+HTTP 400
+{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":[{"path":"body","message":"Must be a JSON object"}],"requestId":"cb4e2876-28c8-4439-9475-d06016292b37"}}
+HTTP 400
+{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":[{"path":"status","message":"Must be one of: todo, in_progress, done"}],"requestId":"c629c187-43e0-44c8-924d-a241d4bd2675"}}
+HTTP 400</code></pre>
+        </div>
+        <p>Also try an update with nothing to change, and a status filter:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" -X PATCH localhost:4000/api/v1/tasks/&lt;id&gt; -H "Content-Type: application/json" -d '{}'
+curl -s -w "\nHTTP %{http_code}\n" "localhost:4000/api/v1/tasks?status=done"</code></pre>
+        <p>The first returns <code>VALIDATION_ERROR</code> with <code>"Send at least one of: title, description, status"</code>, and the second returns <code>[]</code> with <code>HTTP 200</code> (when no task is done). Every error carries the same envelope, whichever file threw it.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 5</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c5-14"><label for="c5-14">A valid <code>POST</code> returns <code>201</code>, and a bad one returns <code>400</code> with <code>details</code>.</label></li>
+            <li><input type="checkbox" id="c5-15"><label for="c5-15">A duplicate title returns <code>409</code> with <code>CONFLICT</code>.</label></li>
+            <li><input type="checkbox" id="c5-16"><label for="c5-16"><code>npm run typecheck</code> is clean.</label></li>
+            <li><input type="checkbox" id="c5-17"><label for="c5-17">You can say why validation takes <code>unknown</code> and not <code>CreateTaskInput</code>.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add task validation and conflict check"
+git push</code></pre>
+      </section>
+
+      <section id="s6">
+        <h2><span class="num">6.</span>Config, health and graceful shutdown <span class="time">25 min</span></h2>
+        <p>You already have the configuration (<code>PORT</code> from the environment, loaded from <code>.env</code>) and the health endpoint (<code>GET /api/v1/health</code>, which a hosting service or a load balancer calls to ask "are you alive?"). What is missing is <strong>graceful shutdown</strong>.</p>
+        <p>When a hosting service stops your app, it sends the process a <code>SIGTERM</code> signal (you met signals in M03). If you do nothing, the process dies on the spot, in the middle of any request. A graceful shutdown stops accepting new connections, lets the requests in progress finish, and then exits. Replace <code>src/server.ts</code>:</p>
+        <pre><code>import { app } from "./app.ts";
+
+const PORT = Number(process.env.PORT ?? 3000);
+
+const server = app.listen(PORT, () =&gt; {
+  console.log(`Task API listening on http://localhost:${PORT}`);
+});
+
+// Stop cleanly: finish the requests in progress, then exit
+function shutdown(signal: string): void {
+  console.log(`${signal} received, closing`);
+  server.close(() =&gt; process.exit(0));
+  // If a connection will not close, give up after 10 seconds
+  setTimeout(() =&gt; process.exit(1), 10_000).unref();
+}
+
+process.on("SIGTERM", () =&gt; shutdown("SIGTERM"));
+process.on("SIGINT", () =&gt; shutdown("SIGINT"));</code></pre>
+        <ul>
+          <li><code>app.listen</code> returns the <code>server</code>. <code>server.close(callback)</code> stops new connections and calls back when the open ones are done.</li>
+          <li>The <code>setTimeout(...).unref()</code> is a safety net: if a connection never closes, the process exits with code <code>1</code> after 10 seconds. <code>unref()</code> means this timer alone does not keep the process alive.</li>
+          <li><code>SIGINT</code> is <code>Ctrl+C</code>, and <code>SIGTERM</code> is what servers send.</li>
+        </ul>
+        <p>Stop the running <code>npm run dev</code> with <code>Ctrl+C</code>, and start it again:</p>
+        <pre><code>npm run dev</code></pre>
+        <p>Press <code>Ctrl+C</code> in that terminal.</p>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Task API listening on http://localhost:4000
+SIGINT received, closing</code></pre>
+        </div>
+        <p>To try <code>SIGTERM</code> on macOS and Linux, start the server with <code>npm start</code>, and in a second terminal run:</p>
+        <pre><code>pkill -TERM -f src/server.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Task API listening on http://localhost:4000
+SIGTERM received, closing</code></pre>
+          <p>Windows has no <code>SIGTERM</code> in the same way, so on Windows use <code>Ctrl+C</code> only. This command was run on Linux. It is untested on macOS.</p>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 6</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c6-18"><label for="c6-18"><code>Ctrl+C</code> prints <code>SIGINT received, closing</code> and the server stops.</label></li>
+            <li><input type="checkbox" id="c6-19"><label for="c6-19">You can say what graceful shutdown protects against.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add graceful shutdown"
+git push</code></pre>
+      </section>
+
+      <section id="s7">
+        <h2><span class="num">7.</span>Bruno collection <span class="time">45 min</span></h2>
+        <p>You have been testing with <code>curl</code>, one command at a time. <strong>Bruno</strong> is a free API client that stores your requests as plain text files, so you can commit them with your code, and run them all at once with assertions. A request file says what to send and what the answer must look like.</p>
+        <h3>7.1 Install</h3>
+        <p>Install the Bruno app from <a href="https://www.usebruno.com/downloads">usebruno.com/downloads</a> (Windows, macOS and Linux installers), or with a package manager if you prefer one. The app is what you use to explore and edit. To run a collection from the terminal, which is how this page checks your work, install the command-line tool in your project:</p>
+        <pre><code>npm install -D @usebruno/cli
+npm pkg set scripts.bruno="cd bruno &amp;&amp; bru run --env local"</code></pre>
+        <p>The CLI is large, and it may print an install-scripts warning, as <code>tsx</code> did in M04. It works anyway.</p>
+        <h3>7.2 Create the collection</h3>
+        <p>A Bruno collection is a folder. Create a <code>bruno/</code> folder in the repo root with these files. The first says it is a collection:</p>
+        <pre><code>{
+  "version": "1",
+  "name": "Task API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}</code></pre>
+        <p>The environment holds values that change between machines (here, the address of your server), so requests use <code>{{baseUrl}}</code> and not a fixed address. Create <code>bruno/environments/local.bru</code>:</p>
+        <pre><code>vars {
+  baseUrl: http://localhost:4000/api/v1
+}</code></pre>
+        <p>If your <code>PORT</code> is not <code>4000</code>, change it here.</p>
+        <p>Now the requests. Each is one <code>.bru</code> file. The <code>seq</code> number sets the order they run in. Here is the first. A request has a method and URL, and an <code>assert</code> block that lists what the response must satisfy:</p>
+        <pre><code>meta {
+  name: Health
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/health
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq ok
+}</code></pre>
+        <p>The second creates a task, and saves its id in a variable for the later requests (<code>vars:post-response</code>):</p>
+        <pre><code>meta {
+  name: Create task
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/tasks
+  body: json
+  auth: none
+}
+
+body:json {
+  {"title": "Write the Bruno collection"}
+}
+
+assert {
+  res.status: eq 201
+  res.body.title: eq Write the Bruno collection
+  res.body.status: eq todo
+}
+
+vars:post-response {
+  taskId: res.body.id
+}</code></pre>
+        <p>This one is an error path. Notice that it asserts the <strong>envelope</strong>: the code, and that <code>requestId</code> is a string:</p>
+        <pre><code>meta {
+  name: Error: task not found
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/tasks/{{taskId}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 404
+  res.body.error.code: eq NOT_FOUND
+  res.body.error.requestId: isString
+}</code></pre>
+        <p>The other twelve follow the same pattern. This table is the whole list. Create each file with the name shown, and copy its contents from the section below the table.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>File</th><th>What it checks</th></tr></thead>
+            <tbody>
+              <tr><td><code>01-health.bru</code></td><td><code>GET /health</code> is <code>200</code></td></tr>
+              <tr><td><code>02-create-task.bru</code></td><td><code>POST /tasks</code> is <code>201</code>, status <code>todo</code>, saves <code>taskId</code></td></tr>
+              <tr><td><code>03-list-tasks.bru</code></td><td><code>GET /tasks</code> is <code>200</code> and includes the new task</td></tr>
+              <tr><td><code>04-get-task.bru</code></td><td><code>GET /tasks/{{taskId}}</code> is <code>200</code></td></tr>
+              <tr><td><code>05-update-task.bru</code></td><td><code>PATCH</code> to <code>in_progress</code> is <code>200</code></td></tr>
+              <tr><td><code>06-filter-by-status.bru</code></td><td><code>?status=in_progress</code> is <code>200</code></td></tr>
+              <tr><td><code>07-delete-task.bru</code></td><td><code>DELETE</code> is <code>204</code></td></tr>
+              <tr><td><code>08-error-task-not-found.bru</code></td><td>the deleted task is <code>404</code> <code>NOT_FOUND</code></td></tr>
+              <tr><td><code>09-error-validation.bru</code></td><td>a bad body is <code>400</code> <code>VALIDATION_ERROR</code> with <code>details[0].path</code> <code>title</code></td></tr>
+              <tr><td><code>10-error-invalid-json.bru</code></td><td>broken JSON is <code>400</code> <code>BAD_REQUEST</code></td></tr>
+              <tr><td><code>11-duplicate-seed.bru</code></td><td>creates "Duplicate me" (<code>201</code>), saves <code>dupId</code></td></tr>
+              <tr><td><code>12-error-conflict.bru</code></td><td>the same title in other letters is <code>409</code> <code>CONFLICT</code></td></tr>
+              <tr><td><code>13-duplicate-cleanup.bru</code></td><td>deletes that task (<code>204</code>), so you can run it again</td></tr>
+              <tr><td><code>14-error-bad-status-filter.bru</code></td><td><code>?status=nope</code> is <code>400</code> <code>VALIDATION_ERROR</code></td></tr>
+              <tr><td><code>15-error-unknown-route.bru</code></td><td><code>/nope</code> is <code>404</code> <code>NOT_FOUND</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <details>
+          <summary>The remaining request files (03 to 07, 09 to 15)</summary>
+          <pre><code>meta {
+  name: List tasks
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/tasks
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body: isArray
+}
+
+tests {
+  test("the new task is in the list", function () {
+    expect(res.body.some((task) =&gt; task.id === bru.getVar("taskId"))).to.equal(true);
+  });
+}</code></pre>
+          <pre><code>meta {
+  name: Get task
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/tasks/{{taskId}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{taskId}}
+}</code></pre>
+          <pre><code>meta {
+  name: Update task
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{baseUrl}}/tasks/{{taskId}}
+  body: json
+  auth: none
+}
+
+body:json {
+  {"status": "in_progress"}
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq in_progress
+}</code></pre>
+          <pre><code>meta {
+  name: Filter by status
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/tasks?status=in_progress
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body: isArray
+}</code></pre>
+          <pre><code>meta {
+  name: Delete task
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/tasks/{{taskId}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 204
+}</code></pre>
+          <pre><code>meta {
+  name: Error: validation
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/tasks
+  body: json
+  auth: none
+}
+
+body:json {
+  {"title": "", "status": "archived"}
+}
+
+assert {
+  res.status: eq 400
+  res.body.error.code: eq VALIDATION_ERROR
+  res.body.error.requestId: isString
+  res.body.error.details[0].path: eq title
+}</code></pre>
+          <pre><code>meta {
+  name: Error: invalid JSON
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/tasks
+  body: json
+  auth: none
+}
+
+body:json {
+  {oops
+}
+
+assert {
+  res.status: eq 400
+  res.body.error.code: eq BAD_REQUEST
+  res.body.error.requestId: isString
+}</code></pre>
+          <pre><code>meta {
+  name: Duplicate: create first
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/tasks
+  body: json
+  auth: none
+}
+
+body:json {
+  {"title": "Duplicate me"}
+}
+
+assert {
+  res.status: eq 201
+}
+
+vars:post-response {
+  dupId: res.body.id
+}</code></pre>
+          <pre><code>meta {
+  name: Error: conflict
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/tasks
+  body: json
+  auth: none
+}
+
+body:json {
+  {"title": "duplicate ME"}
+}
+
+assert {
+  res.status: eq 409
+  res.body.error.code: eq CONFLICT
+  res.body.error.requestId: isString
+}</code></pre>
+          <pre><code>meta {
+  name: Duplicate: clean up
+  type: http
+  seq: 13
+}
+
+delete {
+  url: {{baseUrl}}/tasks/{{dupId}}
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 204
+}</code></pre>
+          <pre><code>meta {
+  name: Error: bad status filter
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{baseUrl}}/tasks?status=nope
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 400
+  res.body.error.code: eq VALIDATION_ERROR
+  res.body.error.requestId: isString
+}</code></pre>
+          <pre><code>meta {
+  name: Error: unknown route
+  type: http
+  seq: 15
+}
+
+get {
+  url: {{baseUrl}}/nope
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 404
+  res.body.error.code: eq NOT_FOUND
+  res.body.error.requestId: isString
+}</code></pre>
+        </details>
+        <h3>7.3 Run it</h3>
+        <p>Make sure the server is running in one terminal (<code>npm run dev</code>), and run the collection in another:</p>
+        <pre><code>npm run bruno</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 bruno
+&gt; cd bruno &amp;&amp; bru run --env local
+
+01-health (200 OK) - 13 ms
+Assertions
+   ✓ res.status: eq 200
+   ✓ res.body.status: eq ok
+02-create-task (201 Created) - 11 ms
+...
+📊 Execution Summary
+┌───────────────┬────────────────┐
+│ Metric        │     Result     │
+├───────────────┼────────────────┤
+│ Status        │     ✓ PASS     │
+├───────────────┼────────────────┤
+│ Requests      │ 15 (15 Passed) │
+├───────────────┼────────────────┤
+│ Tests         │      1/1       │
+├───────────────┼────────────────┤
+│ Assertions    │     35/35      │
+├───────────────┼────────────────┤
+│ Duration (ms) │      280       │
+└───────────────┴────────────────┘</code></pre>
+          <p>The timings are yours. The middle of the output lists every assertion, and is left out here.</p>
+        </div>
+        <p>To use the app instead: open Bruno, choose <strong>Open Collection</strong>, pick your <code>bruno</code> folder, choose the <code>local</code> environment at the top right, and use the <strong>Run</strong> option on the collection. The app and the CLI read the same files. (The app steps are untested here: this page was checked with the CLI.)</p>
+        <h3>7.4 See a failure</h3>
+        <p>A test that cannot fail proves nothing. In <code>src/errors.ts</code>, change <code>"NOT_FOUND"</code> to <code>"MISSING"</code> inside <code>NotFoundError</code>, save, and run <code>npm run bruno</code> again.</p>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>08-error-task-not-found (404 Not Found) - 2 ms
+Assertions
+   ✓ res.status: eq 404
+   ✕ res.body.error.code: eq NOT_FOUND
+      expected 'MISSING' to equal 'NOT_FOUND'
+   ✓ res.body.error.requestId: isString</code></pre>
+          <p>Two requests fail (<code>08</code> and <code>15</code>), the summary says <code>✗ FAIL</code>, and the command exits with code <code>1</code>, which is what lets a script or CI notice. Change <code>"MISSING"</code> back to <code>"NOT_FOUND"</code>.</p>
+        </div>
+        <p>Run it once more to confirm it passes. The server keeps its tasks in memory, so if a run stopped halfway and left "Duplicate me" behind, restart the server before running again.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 7</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c7-20"><label for="c7-20"><code>npm run bruno</code> shows <code>✓ PASS</code>, with 15 requests and 35 assertions.</label></li>
+            <li><input type="checkbox" id="c7-21"><label for="c7-21">You broke an error code on purpose, saw a failed assertion, and fixed it.</label></li>
+            <li><input type="checkbox" id="c7-22"><label for="c7-22">The <code>bruno/</code> folder is committed. It is plain text, and it is part of the project.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "test: add bruno collection for the task api"
+git push</code></pre>
+      </section>
+
+      <section id="check">
+        <h2>Check your understanding <span class="time">10 min</span></h2>
+        <p>Answer each one in your head, then open it to compare.</p>
+        <details>
+          <summary>Why does Express 5 not need a <code>try/catch</code> around an <code>async</code> handler?</summary>
+          <p>In Express 5, if a handler returns a promise and it rejects (or the handler throws), Express catches that and passes the error to the error-handling middleware by itself, as if you had called <code>next(error)</code>. In Express 4 you had to catch the error and call <code>next(error)</code> yourself, or the request would hang and the error would be lost.</p>
+        </details>
+        <details>
+          <summary>Why are <code>app.ts</code> and <code>server.ts</code> separate files?</summary>
+          <p><code>app.ts</code> builds and exports the app, and <code>server.ts</code> is the only file that opens a port. A test (M09) can import <code>app</code> and send it requests without starting a real server or fighting over a port. If importing the app started listening, every test file would start a server.</p>
+        </details>
+        <details>
+          <summary>What went wrong when <code>express.json()</code> was registered after the routes?</summary>
+          <p>Middleware runs in the order it is registered. The request reached the route handler before the body had been read, so <code>req.body</code> was <code>undefined</code>, and the handler created a task with no title. Nothing crashed. Order bugs are silent, so keep the setup in a deliberate order: id and logging first, body parsing, routes, then the 404 handler and the error handler last.</p>
+        </details>
+        <details>
+          <summary>What is the difference between an operational error and a programmer error, and how does the handler treat each?</summary>
+          <p>An operational error can happen in a correct program (not found, invalid input, a conflict). It is an <code>AppError</code> with a status and a code, and the handler sends exactly that in the envelope. A programmer error is a bug. The handler logs it for you, and sends a generic <code>500</code> so no internal detail leaks to the client.</p>
+        </details>
+        <details>
+          <summary>What is the difference between <code>next()</code> and <code>next(error)</code>?</summary>
+          <p><code>next()</code> passes the request to the next middleware or route. <code>next(error)</code> skips the rest of the normal pipeline and goes to the error-handling middleware (the one with four parameters). In Express 5 a thrown error or a rejected promise does the same as <code>next(error)</code>.</p>
+        </details>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <details>
+          <summary><code>EADDRINUSE: address already in use :::4000</code></summary>
+            <p>Another process, often an earlier run of the server, is using the port. Stop it with <code>Ctrl+C</code>, or change <code>PORT</code> in <code>.env</code> (and <code>baseUrl</code> in <code>bruno/environments/local.bru</code>). To find the process on macOS and Linux, run <code>lsof -i :4000</code>, then <code>kill &lt;pid&gt;</code>. On Windows, run <code>netstat -ano | findstr :4000</code>, then <code>taskkill /PID &lt;pid&gt; /F</code>.</p>
+        </details>
+        <details>
+          <summary><code>curl</code> shows <code>Connection refused</code> or <code>Could not connect to server</code></summary>
+            <p>The server is not running, or it is on another port. Check the first terminal prints <code>Task API listening on http://localhost:4000</code> (or your <code>PORT</code>). A different <code>PORT</code> means a different address in every command.</p>
+        </details>
+        <details>
+          <summary>Valid JSON is rejected as <code>Must be a JSON object</code>, or a task has no title</summary>
+            <p><code>req.body</code> is <code>undefined</code>, so the body was not parsed. Check that <code>app.use(express.json())</code> comes <strong>before</strong> the routes in <code>app.ts</code>, and that your <code>curl</code> command has <code>-H "Content-Type: application/json"</code>.</p>
+        </details>
+        <details>
+          <summary><code>Missing parameter name at index ...</code> when the server starts</summary>
+            <p>A route path uses the old Express 4 wildcard <code>*</code>. Express 5 needs a name: <code>/files/*splat</code>. Check <code>app.ts</code> and the routes for a stray <code>*</code>.</p>
+        </details>
+        <details>
+          <summary><code>TS2345</code> or <code>TS2769</code> on a route handler</summary>
+            <p>The handler's types do not fit <code>Request&lt;Params, ResBody, ReqBody, Query&gt;</code> or <code>Response&lt;Body&gt;</code>. Check the order of the four <code>Request</code> parameters (params first, then response body, request body, query), and that <code>res.json(...)</code> is given the type you declared in <code>Response&lt;...&gt;</code>. An error handler needs all four parameters.</p>
+        </details>
+        <details>
+          <summary><code>Cannot find module '../errors.ts'</code> or a <code>.ts</code> import error</summary>
+            <p>Relative imports end in <code>.ts</code> here, as in M04 (<code>import { x } from "./file.ts"</code>). Check the path and the spelling, and that the file is where the import says.</p>
+        </details>
+        <details>
+          <summary><code>npm run dev</code> does not restart when you save</summary>
+            <p><code>tsx watch</code> only watches files your program imports. Check you saved the file, and that the file is imported from <code>server.ts</code> (directly or through <code>app.ts</code>). Stop it and start it again.</p>
+        </details>
+        <details>
+          <summary><code>curl</code> shows a quoting error or <code>{"error":{"code":"BAD_REQUEST"...}}</code> for JSON that looks right</summary>
+            <p>The terminal changed your quotes. Use single quotes around the JSON in Git Bash, macOS and Linux (<code>-d '{"title":"x"}'</code>). Windows PowerShell and cmd need different escaping, so use Git Bash.</p>
+        </details>
+        <details>
+          <summary>The browser says a request was blocked by CORS</summary>
+            <p>Check <code>app.use(cors())</code> is in <code>app.ts</code> <strong>above</strong> the routes. With no options it allows every origin. If you restrict it later, the origin of your web page must be on the list.</p>
+        </details>
+        <details>
+          <summary><code>npm run bruno</code> says <code>bru: not found</code>, or cannot find the collection</summary>
+            <p>Run <code>npm install -D @usebruno/cli</code> from the repo root, and use <code>npm run bruno</code> (it changes into <code>bruno/</code> first). If you run <code>bru</code> yourself, run it from inside the <code>bruno</code> folder.</p>
+        </details>
+        <details>
+          <summary>Bruno shows <code>ECONNREFUSED</code></summary>
+            <p>The server is not running, or <code>baseUrl</code> in <code>bruno/environments/local.bru</code> has the wrong port. Start <code>npm run dev</code> in another terminal, and check the port matches your <code>.env</code>.</p>
+        </details>
+        <details>
+          <summary><code>Create task</code> or <code>Error: conflict</code> fails on the second run</summary>
+            <p>The server keeps tasks in memory. A run that stopped halfway can leave a task behind, so the next run gets a <code>409</code>. Stop the server and start it again, and run <code>npm run bruno</code>.</p>
+        </details>
+      </section>
+
+      <section id="done">
+        <h2>You're done when</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="d23"><label for="d23"><code>npm run typecheck</code> is clean.</label></li>
+          <li><input type="checkbox" id="d24"><label for="d24">All five task endpoints work, and <code>GET /api/v1/health</code> answers <code>200</code>.</label></li>
+          <li><input type="checkbox" id="d25"><label for="d25"><code>app.ts</code> builds and exports the app, and only <code>server.ts</code> calls <code>listen</code>, and stops cleanly on <code>SIGTERM</code> and <code>Ctrl+C</code>.</label></li>
+          <li><input type="checkbox" id="d26"><label for="d26">Every error path (unknown route, unknown task, invalid JSON, validation, conflict, a bug) returns the exact error envelope with a real <code>requestId</code>.</label></li>
+          <li><input type="checkbox" id="d27"><label for="d27"><code>npm run bruno</code> passes: 15 requests and 35 assertions, and the <code>bruno/</code> folder is committed.</label></li>
+          <li><input type="checkbox" id="d28"><label for="d28">You can explain why Express 5 does not need a <code>try/catch</code> around an <code>async</code> handler.</label></li>
+          <li><input type="checkbox" id="d29"><label for="d29">Everything is committed and pushed to your repo.</label></li>
+        </ul>
+        <p>Keep <code>src/app.ts</code>, <code>src/routes/tasks.ts</code>, <code>src/errors.ts</code> and <code>src/store/tasks.ts</code> as they are. M07 replaces the store with a database, M08 replaces the validation with Zod, and M09 tests the app you exported.</p>
+      </section>
+
+<nav class="pager" aria-label="Module navigation">
+        <a href="../m04-typescript-on-node/index.html">&larr; M04, TypeScript Basics &amp; TypeScript on Node.js</a>
+        <a href="../../index.html">All modules</a>
+        <span>Next: M06, SQL Fundamentals with SQLite (coming soon).</span>
+      </nav>
+    </main>
+  </div>
+</body>
+</html>
