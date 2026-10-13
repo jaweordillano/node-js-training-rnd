@@ -1353,4 +1353,4 @@ The opening line must be exactly three backticks and the word `mermaid`, and the
 
 Keep `sql/schema.sql` and your README diagram as they are. M07 turns this schema into a Prisma schema and a real migration.
 
-Previous: [M05, Express: Routing, Middleware & Error Handling](../m05-express-task-api-v1/index.md). Next: M07, Prisma ORM & Migrations (coming soon).
+Previous: [M05, Express: Routing, Middleware & Error Handling](../m05-express-task-api-v1/index.md). Next: [M07, Prisma ORM & Migrations](../m07-prisma-orm-migrations/index.md).

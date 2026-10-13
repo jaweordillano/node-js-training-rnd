@@ -1,0 +1,1436 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M07 — Prisma ORM &amp; Migrations</title>
+  <meta name="description" content="Replace the in-memory store of the Task API with Prisma 7 and SQLite: translate the M06 schema, write migrations (one by hand), build a service layer, map Prisma errors into the existing error handler, and seed the database, in your node-js-training project.">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <a class="back" href="../../index.html">&larr; All modules</a>
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#overview">Overview &amp; time plan</a></li>
+        <li><a href="#s1">1. What an ORM is, and Prisma 7 setup</a></li>
+        <li><a href="#s2">2. The Prisma schema: translating M06</a></li>
+        <li><a href="#s3">3. Migrations, including a hand-edited one</a></li>
+        <li><a href="#s4">4. The Prisma client</a></li>
+        <li><a href="#s5">5. The service layer: replacing the in-memory store</a></li>
+        <li><a href="#s6">6. Prisma errors in the existing error handler</a></li>
+        <li><a href="#s7">7. Seeding, reset and generated types</a></li>
+        <li><a href="#s8">8. Concepts: team migrations, PostgreSQL, MongoDB, Prisma 8</a></li>
+        <li><a href="#check">Check your understanding</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#done">You're done when</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Module M07 · Week 3 · Days 2-4 · about 5 hours</p>
+        <h1>Prisma ORM &amp; Migrations</h1>
+        <p class="lede">Move the Task API from memory to a real database: translate your SQL schema into Prisma, evolve it with migrations (including one you edit by hand), and let the typed Prisma client do the work, with Prisma's errors flowing through the error handler you already have.</p>
+      </header>
+
+      <section id="overview">
+        <h2>Overview &amp; time plan</h2>
+        <p><strong>Builds on:</strong> M05 and M06. You need the <code>node-js-training</code> repo with the Task API from M05 (<code>npm run bruno</code> passes), TypeScript set up, the <code>sqlite3</code> command line from M06, and Node.js 24. Everything you write here goes into that same repo, on <code>main</code>, with the add, commit and push steps you know. (The word "module" on this page means the course lessons, M01 to M10.)</p>
+        <p>Right now the Task API keeps its tasks in memory, so a restart loses them. In M06 you designed a relational schema and wrote the SQL by hand. <strong>Prisma</strong> is an <strong>ORM</strong> (object-relational mapper): you describe your tables once, in a schema file, and Prisma gives you migrations that change the database safely and a typed client that writes the SQL for you. Because you wrote the SQL yourself first, you know what it is doing.</p>
+        <p>You will:</p>
+        <ul>
+          <li>install <strong>Prisma 7</strong> with the SQLite driver adapter, and translate the M06 schema into Prisma;</li>
+          <li>create <strong>two migrations</strong>, the second one <strong>edited by hand</strong> because Prisma cannot guess what your existing rows need;</li>
+          <li>learn the Prisma client: queries, filters, pagination, nested writes, transactions and raw SQL;</li>
+          <li>replace the in-memory store with a <strong>service layer</strong>, and give the list endpoint filtering, sorting and pagination;</li>
+          <li>map Prisma's error codes into the <strong>same error handler</strong> from M05;</li>
+          <li>write a <strong>seed script</strong> that rebuilds your data, and prove the database can be rebuilt from nothing.</li>
+        </ul>
+        <ol class="plan">
+          <li><a href="#s1">What an ORM is, and Prisma 7 setup</a> <span class="time">30 min</span></li>
+          <li><a href="#s2">The Prisma schema: translating M06</a> <span class="time">35 min</span></li>
+          <li><a href="#s3">Migrations, including a hand-edited one</a> <span class="time">50 min</span></li>
+          <li><a href="#s4">The Prisma client</a> <span class="time">40 min</span></li>
+          <li><a href="#s5">The service layer: replacing the in-memory store</a> <span class="time">55 min</span></li>
+          <li><a href="#s6">Prisma errors in the existing error handler</a> <span class="time">30 min</span></li>
+          <li><a href="#s7">Seeding, reset and generated types</a> <span class="time">30 min</span></li>
+          <li><a href="#s8">Concepts: team migrations, PostgreSQL, MongoDB, Prisma 8</a> <span class="time">20 min</span></li>
+          <li><a href="#check">Check your understanding</a> <span class="time">10 min</span></li>
+        </ol>
+        <div class="callout warn">
+          <p class="callout-title">Always Prisma 7</p>
+          <p>The newest Prisma on npm is now version 8, a release candidate that does not work with this course's setup. Every Prisma command on this page is written as <code>npx prisma@7 ...</code>, and your <code>package.json</code> locks <code>prisma</code> and <code>@prisma/client</code> to <code>^7</code>. Prisma itself will print a box suggesting you update to version 8. <strong>Ignore it.</strong> If you ever see a Prisma version starting with <code>8</code>, stop and check section 1.</p>
+        </div>
+        <p>This page moves quickly. Type the code in sections 1 to 6 where you can. The seed script, the extended <code>validation.ts</code> (section 5) and the Bruno changes you may paste. Run each step, and compare with the <em>You should see</em> box. Your migration names contain a date and time, and your ids and timestamps are your own, so they will differ. Commands are written for Git Bash on Windows, and macOS and Linux Terminal. If anything else differs, check <a href="#troubleshooting">Troubleshooting</a>.</p>
+      </section>
+
+      <section id="s1">
+        <h2><span class="num">1.</span>What an ORM is, and Prisma 7 setup <span class="time">30 min</span></h2>
+        <h3>1.1 What an ORM gives you, and what it costs</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Gives you</th><th>Costs you</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Types</strong>: a query's result type is generated from your schema, so a typo in a field name is a compile error</td><td>It hides the SQL, so a slow or odd query is harder to understand. (You wrote SQL in M06, so you can read it.)</td></tr>
+              <tr><td><strong>Migrations</strong>: schema changes are versioned files in your repo</td><td>One more tool and one more thing to keep in step with the database</td></tr>
+              <tr><td><strong>Safety</strong>: values are always parameters, so SQL injection (M06) is not possible by accident</td><td>Some queries are awkward or slow to express in the ORM</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>When a query is complicated (reports, heavy joins) or performance-critical, drop to raw SQL. Prisma keeps a door open for that, <code>$queryRaw</code>, which you meet in section 4.</p>
+        <h3>1.2 Install</h3>
+        <p>From the repo root:</p>
+        <pre><code>npm install -D prisma@7
+npm install @prisma/client@7 @prisma/adapter-better-sqlite3 dotenv</code></pre>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Package</th><th>What it is</th></tr></thead>
+            <tbody>
+              <tr><td><code>prisma</code> (dev)</td><td>The command-line tool: migrations, <code>generate</code>, the schema checker</td></tr>
+              <tr><td><code>@prisma/client</code></td><td>The client your app uses to run queries. It is generated from your schema</td></tr>
+              <tr><td><code>@prisma/adapter-better-sqlite3</code></td><td>The <strong>driver adapter</strong>. Prisma 7 requires one, and this one talks to SQLite through <code>better-sqlite3</code></td></tr>
+              <tr><td><code>dotenv</code></td><td>Loads <code>.env</code> for the Prisma tool</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><code>better-sqlite3</code> is a native library, so its install runs a script that downloads a ready-made binary for your system. That is the lifecycle-script idea from M03 again, and Prisma's own packages also have install scripts. Depending on your npm version you may see a warning that they are not yet approved. They work anyway.</p>
+        <p>Check what you got, and open <code>package.json</code>:</p>
+        <pre><code>npx prisma@7 --version</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>prisma               : 7.10.0
+@prisma/client       : 7.10.0
+Operating System     : linux
+Architecture         : x64</code></pre>
+          <p>Your version may be a newer <code>7.x</code>, and the system lines are your own. In <code>package.json</code>, <code>prisma</code> (under <code>devDependencies</code>) and <code>@prisma/client</code> (under <code>dependencies</code>) both start with <code>^7</code>. That <code>^7</code> stops npm from ever moving them to version 8. If either says <code>8</code>, run <code>npm install -D prisma@7</code> and <code>npm install @prisma/client@7</code> again.</p>
+        </div>
+        <h3>1.3 Initialise Prisma</h3>
+        <pre><code>npx prisma@7 init --datasource-provider sqlite --output ../src/generated/prisma --no-skills</code></pre>
+        <p>The options say: use SQLite, put the generated client in <code>src/generated/prisma</code>, and <strong>do not</strong> install Prisma's optional "agent skills" (without <code>--no-skills</code>, <code>init</code> also creates folders for AI coding assistants that you do not need).</p>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Initialized Prisma in your project
+
+  prisma/
+    schema.prisma
+  prisma7.config.ts
+
+warn You already have a .gitignore file. Don't forget to add .env in it to not commit any private information.
+
+Next, set up your database:
+  1. Configure your DATABASE_URL in prisma7.config.ts
+  2. Run prisma db pull to introspect your database.
+
+Then, define your models in prisma/schema.prisma and run prisma migrate dev to apply your schema.
+
+Learn more: https://pris.ly/getting-started
+</code></pre>
+          <p>The warning is fine: <code>.env</code> is already in your <code>.gitignore</code> from M01. Ignore the "Next" steps below it: this page tells you what to do.</p>
+        </div>
+        <p>It made three changes:</p>
+        <ul>
+          <li><strong><code>prisma/schema.prisma</code></strong> is where you describe your data. You write it in section 2.</li>
+          <li><strong><code>prisma7.config.ts</code></strong> tells the Prisma tool where the schema is, where migrations go, and which database to use (it reads <code>DATABASE_URL</code>). On Prisma 7.10 the file is called <code>prisma7.config.ts</code>. On a slightly older 7.x it is <code>prisma.config.ts</code>. The tool finds either one by itself.</li>
+          <li><strong><code>.gitignore</code></strong> gained a line, <code>/src/generated/prisma</code>. The client Prisma generates is code, but it is rebuilt from your schema, so it is not committed. That means you run <code>prisma generate</code> yourself after installing and after every schema change, and in CI.</li>
+        </ul>
+        <p>It also added a line to <code>.env</code>. Open <code>.env</code> and change that line, so the database goes in your <code>data/</code> folder (which is gitignored, with <code>*.db</code>):</p>
+        <pre><code>DATABASE_URL="file:./data/app.db"</code></pre>
+        <p>(Keep your <code>PORT=4000</code> line. There may be explanatory comments above the <code>DATABASE_URL</code> line: leave them.)</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 1</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c1-1"><label for="c1-1"><code>npx prisma@7 --version</code> shows <code>7.x</code>, and <code>package.json</code> has <code>^7</code> for <code>prisma</code> and <code>@prisma/client</code>.</label></li>
+            <li><input type="checkbox" id="c1-2"><label for="c1-2"><code>prisma/schema.prisma</code> and <code>prisma7.config.ts</code> exist, and <code>.env</code> has <code>DATABASE_URL="file:./data/app.db"</code>.</label></li>
+            <li><input type="checkbox" id="c1-3"><label for="c1-3">You can say why the generated client is not committed.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s2">
+        <h2><span class="num">2.</span>The Prisma schema: translating M06 <span class="time">35 min</span></h2>
+        <h3>2.1 From SQL tables to Prisma models</h3>
+        <p>A Prisma <strong>model</strong> is a table. Each line in a model is a column, or a relationship. Here is how the pieces of your M06 schema translate:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>In M06 (SQL)</th><th>In Prisma</th></tr></thead>
+            <tbody>
+              <tr><td><code>CREATE TABLE tasks (...)</code></td><td><code>model Task { ... }</code></td></tr>
+              <tr><td><code>INTEGER PRIMARY KEY</code></td><td><code>String @id @default(uuid())</code>. This course uses UUID text ids, because the API from M05 already does. Prisma makes the id for you</td></tr>
+              <tr><td><code>NOT NULL</code></td><td>The field has no <code>?</code></td></tr>
+              <tr><td>a nullable column</td><td>A <code>?</code> after the type: <code>description String?</code></td></tr>
+              <tr><td><code>DEFAULT 'todo'</code></td><td><code>@default(todo)</code></td></tr>
+              <tr><td><code>UNIQUE</code></td><td><code>@unique</code></td></tr>
+              <tr><td><code>CHECK (status IN (...))</code></td><td>An <code>enum</code>. Note: on SQLite Prisma checks the value in the client, and does not add a database <code>CHECK</code></td></tr>
+              <tr><td><code>FOREIGN KEY ... ON DELETE SET NULL</code></td><td><code>@relation(fields: [userId], references: [id], onDelete: SetNull)</code></td></tr>
+              <tr><td><code>CREATE INDEX</code></td><td><code>@@index([status])</code></td></tr>
+              <tr><td>the <code>task_tags</code> junction table</td><td>An <strong>implicit many-to-many</strong>: <code>tags Tag[]</code> on <code>Task</code> and <code>tasks Task[]</code> on <code>Tag</code>. Prisma creates the junction table itself, called <code>_TagToTask</code></td></tr>
+              <tr><td><code>updated_at</code> you maintained yourself</td><td><code>@updatedAt</code>: Prisma sets it on every update</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The implicit many-to-many is the one real difference. In M06 you wrote <code>task_tags</code> yourself. Prisma will write an equivalent table with two columns, <code>A</code> and <code>B</code>, and you never touch it directly: you read and write <code>task.tags</code>.</p>
+        <h3>2.2 The schema</h3>
+        <p>Replace the contents of <code>prisma/schema.prisma</code>:</p>
+        <pre><code>generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  done
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  tasks     Task[]
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  status      TaskStatus @default(todo)
+  userId      String?
+  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tags        Tag[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([status])
+  @@index([userId])
+}
+
+model Tag {
+  id    String @id @default(uuid())
+  name  String @unique
+  tasks Task[]
+}</code></pre>
+        <ul>
+          <li><strong><code>generator client</code></strong> says to generate the client into <code>src/generated/prisma</code>.</li>
+          <li><strong><code>datasource db</code></strong> names the database type. In Prisma 7 the address is not here: it comes from <code>prisma7.config.ts</code> and <code>.env</code>.</li>
+          <li><strong><code>enum TaskStatus</code></strong> lists the allowed statuses. They are exactly the <code>todo</code>, <code>in_progress</code> and <code>done</code> of the API contract, so the generated type matches the one from M04.</li>
+          <li><strong><code>@relation(fields: [userId], references: [id], onDelete: SetNull)</code></strong> is the foreign key. <code>userId</code> is the column, and <code>user</code> is the related row you can read in code. <code>SetNull</code> is what you chose in M06: deleting a user keeps their tasks, unassigned.</li>
+          <li><strong><code>@@index</code></strong> lines add the indexes you added in M06 section 6.</li>
+        </ul>
+        <p>Check the file, and generate the client from it:</p>
+        <pre><code>npx prisma@7 validate
+npx prisma@7 generate</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Loaded Prisma config from prisma7.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+The schema at prisma/schema.prisma is valid 🚀
+Loaded Prisma config from prisma7.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+┌─────────────────────────────────────────────────────────┐
+│  Update available 7.10.0 -&gt; 8.0.0-rc.22                 │
+│                                                         │
+│  This is a major update - please follow the guide at    │
+│  https://pris.ly/d/major-version-upgrade                │
+│                                                         │
+│  Run the following to update                            │
+│    npm i --save-dev prisma@latest                       │
+│    npm i @prisma/client@latest                          │
+└─────────────────────────────────────────────────────────┘
+
+✔ Generated Prisma Client (7.10.0) to ./src/generated/prisma in 32ms
+</code></pre>
+          <p>That box is the "update available" message. <strong>Do not run those commands.</strong> They would install Prisma 8, which does not work here. The box does not always appear. The last line is what matters. It wrote the client into <code>src/generated/prisma</code>, where TypeScript can import it.</p>
+        </div>
+        <p><code>generate</code> reads the schema and writes TypeScript code: a <code>Task</code> type, a <code>TaskStatus</code> enum, and a client with methods like <code>prisma.task.findMany</code>. Whenever you change the schema, the generated code is out of date until you run <code>generate</code> again. Prisma 7 does not do it for you when you migrate.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 2</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c2-4"><label for="c2-4"><code>validate</code> says the schema is valid, and <code>generate</code> wrote the client to <code>src/generated/prisma</code>.</label></li>
+            <li><input type="checkbox" id="c2-5"><label for="c2-5">You can say how <code>task_tags</code> from M06 appears in Prisma.</label></li>
+            <li><input type="checkbox" id="c2-6"><label for="c2-6">You did not run the <code>@latest</code> commands from the update box.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s3">
+        <h2><span class="num">3.</span>Migrations, including a hand-edited one <span class="time">50 min</span></h2>
+        <h3>3.1 What a migration is</h3>
+        <p>A <strong>migration</strong> is a SQL file that moves the database from one shape to the next. Prisma stores them in <code>prisma/migrations/</code>, one folder each, named with a date and a label. The database remembers which ones it has run, in a table called <code>_prisma_migrations</code>. To change the schema you change <code>schema.prisma</code>, and Prisma writes the SQL for the difference. This beats editing the database by hand, because the changes are in Git, in order, and anyone can rebuild the same database.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Command</th><th>What it does</th><th>When</th></tr></thead>
+            <tbody>
+              <tr><td><code>prisma migrate dev</code></td><td>Compares the schema with your migrations, <strong>writes a new migration</strong> if they differ, applies it, and creates the database if it does not exist</td><td>Development, every time you change the schema</td></tr>
+              <tr><td><code>prisma migrate deploy</code></td><td>Applies the migrations that have not run yet. It never writes new ones and never asks</td><td>A test, CI or production database</td></tr>
+              <tr><td><code>prisma migrate status</code></td><td>Shows which migrations are applied</td><td>Any time</td></tr>
+              <tr><td><code>prisma migrate reset</code></td><td><strong>Drops the database</strong>, runs every migration again, and runs the seed</td><td>Development only</td></tr>
+              <tr><td><code>prisma db push</code></td><td>Forces the database to match the schema with <strong>no migration file</strong></td><td>Quick prototypes only: it leaves no history</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>Never edit a migration that has already been applied</strong>, here or on anyone else's machine: the database remembers it ran, so a changed file no longer matches and Prisma will complain. To change something, add a new migration.</p>
+        <h3>3.2 The first migration</h3>
+        <pre><code>npx prisma@7 migrate dev --name init</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Loaded Prisma config from prisma7.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": SQLite database "app.db" at "file:./data/app.db"
+
+SQLite database app.db created at file:./data/app.db
+
+Applying migration `20261012232021_init`
+
+The following migration(s) have been created and applied from new schema changes:
+
+prisma/migrations/
+  └─ 20261012232021_init/
+    └─ migration.sql
+
+Your database is now in sync with your schema.
+</code></pre>
+          <p>The number in front of <code>init</code> is the date and time you ran it.</p>
+        </div>
+        <p>Open the new <code>prisma/migrations/&lt;date&gt;_init/migration.sql</code>. This is the SQL Prisma wrote for you. Compare it with your M06 <code>schema.sql</code>: it is the same kind of thing.</p>
+        <pre><code>-- CreateTable
+CREATE TABLE "User" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "email" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "Task" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'todo',
+    "userId" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "Task_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "Tag" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "_TagToTask" (
+    "A" TEXT NOT NULL,
+    "B" TEXT NOT NULL,
+    CONSTRAINT "_TagToTask_A_fkey" FOREIGN KEY ("A") REFERENCES "Tag" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "_TagToTask_B_fkey" FOREIGN KEY ("B") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE INDEX "Task_status_idx" ON "Task"("status");
+
+-- CreateIndex
+CREATE INDEX "Task_userId_idx" ON "Task"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Tag_name_key" ON "Tag"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "_TagToTask_AB_unique" ON "_TagToTask"("A", "B");
+
+-- CreateIndex
+CREATE INDEX "_TagToTask_B_index" ON "_TagToTask"("B");</code></pre>
+        <p>You can see your M06 work in it: the <code>CREATE TABLE</code>s, the foreign key with <code>ON DELETE SET NULL</code>, the unique indexes, and the junction table <code>_TagToTask</code> with its <code>CASCADE</code> rules. Notice what is <strong>not</strong> there: there is no <code>CHECK</code> for <code>status</code>. Check the new database with the SQLite shell from M06:</p>
+        <pre><code>sqlite3 data/app.db ".tables"</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Tag     Task     User     _TagToTask     _prisma_migrations</code></pre>
+        </div>
+        <h3>3.3 The client, and some existing data</h3>
+        <p>Create <code>src/db.ts</code>. It makes the one Prisma client the whole app shares, connected through the driver adapter:</p>
+        <pre><code>import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaClient } from "./generated/prisma/client.ts";
+
+// One client for the whole app. PrismaClient needs a driver adapter: here, better-sqlite3.
+const adapter = new PrismaBetterSqlite3({
+  url: process.env.DATABASE_URL ?? "file:./data/app.db",
+});
+
+export const prisma = new PrismaClient({ adapter });</code></pre>
+        <p>Now put some rows in the database, so the next migration has something to deal with. Create <code>src/labs/old-data.ts</code>:</p>
+        <pre><code>import { prisma } from "../db.ts";
+
+// A few rows that exist before the second migration
+await prisma.task.createMany({
+  data: [
+    { title: "Write the report", status: "done" },
+    { title: "Review the schema", description: "Check the indexes" },
+    { title: "Fix the login bug", status: "in_progress" },
+  ],
+});
+console.log("tasks:", await prisma.task.count());
+await prisma.$disconnect();</code></pre>
+        <pre><code>npx tsx --env-file-if-exists=.env src/labs/old-data.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>tasks: 3</code></pre>
+          <p><code>--env-file-if-exists=.env</code> loads your <code>.env</code>, as in M03, so <code>DATABASE_URL</code> is set.</p>
+        </div>
+        <h3>3.4 A second migration that Prisma cannot write alone</h3>
+        <p>M05 had a rule: you cannot create two tasks whose titles differ only in capital letters. It was checked in code, which is not safe (two requests at the same moment could both pass). The database should guarantee it. SQLite's <code>UNIQUE</code> is case-sensitive, so the trick is a second column, <code>titleKey</code>, that holds the lower-case title, and is unique.</p>
+        <p>Add the column to the <code>Task</code> model in <code>prisma/schema.prisma</code>, on the line after <code>title</code>:</p>
+        <pre><code>  titleKey    String     @unique</code></pre>
+        <p>It is <strong>required</strong> (no <code>?</code>), and your table already has 3 rows with no <code>titleKey</code>. Ask Prisma for the migration, but <strong>do not apply it yet</strong>. <code>--create-only</code> writes the file and stops, so you can read it:</p>
+        <pre><code>npx prisma@7 migrate dev --create-only --name add_title_key</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Loaded Prisma config from prisma7.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": SQLite database "app.db" at "file:./data/app.db"
+
+
+
+⚠️ We found changes that cannot be executed:
+
+  • Step 0 Added the required column `titleKey` to the `Task` table without a default value. There are 3 rows in this table, it is not possible to execute this step.
+
+Prisma Migrate created the following migration without applying it 20261012232023_add_title_key
+
+You can now edit it and apply it by running prisma migrate dev.</code></pre>
+        </div>
+        <p>Prisma noticed the problem: a new required column with no value for the 3 existing rows. It wrote the migration anyway, and left the fix to you. Open <code>prisma/migrations/&lt;date&gt;_add_title_key/migration.sql</code>:</p>
+        <pre><code>/*
+  Warnings:
+
+  - Added the required column `titleKey` to the `Task` table without a default value. This is not possible if the table is not empty.
+
+*/
+-- RedefineTables
+PRAGMA defer_foreign_keys=ON;
+PRAGMA foreign_keys=OFF;
+CREATE TABLE "new_Task" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "title" TEXT NOT NULL,
+    "titleKey" TEXT NOT NULL,
+    "description" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'todo',
+    "userId" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "Task_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+);
+INSERT INTO "new_Task" ("createdAt", "description", "id", "status", "title", "updatedAt", "userId") SELECT "createdAt", "description", "id", "status", "title", "updatedAt", "userId" FROM "Task";
+DROP TABLE "Task";
+ALTER TABLE "new_Task" RENAME TO "Task";
+CREATE UNIQUE INDEX "Task_titleKey_key" ON "Task"("titleKey");
+CREATE INDEX "Task_status_idx" ON "Task"("status");
+CREATE INDEX "Task_userId_idx" ON "Task"("userId");
+PRAGMA foreign_keys=ON;
+PRAGMA defer_foreign_keys=OFF;</code></pre>
+        <p>SQLite cannot add a required column to a table in place, so Prisma <strong>redefines the table</strong>: it creates <code>new_Task</code> with the new column, copies the rows across with <code>INSERT ... SELECT</code>, drops the old table and renames the new one. The copy is the problem: it lists every column <em>except</em> <code>titleKey</code>, so the new column would be empty, and <code>NOT NULL</code> would reject every row.</p>
+        <p>Fix it by hand. In the <code>INSERT INTO "new_Task"</code> line, add <code>"titleKey"</code> to the list of columns being filled, and fill it from the title with <code>lower("title")</code> in the <code>SELECT</code>. The whole line becomes:</p>
+        <pre><code>INSERT INTO "new_Task" ("createdAt", "description", "id", "status", "title", "titleKey", "updatedAt", "userId") SELECT "createdAt", "description", "id", "status", "title", lower("title"), "updatedAt", "userId" FROM "Task";</code></pre>
+        <p>That is a <strong>backfill</strong>: the existing rows get a sensible value. This is the general recipe for a required column on a table with data: add it, fill it from existing data, then enforce it. Now apply the migration (you can edit it freely because it has not run yet), and check:</p>
+        <pre><code>npx prisma@7 migrate dev
+npx prisma@7 migrate status
+sqlite3 data/app.db ".headers on" ".mode column" "SELECT title, titleKey FROM Task;"</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Loaded Prisma config from prisma7.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": SQLite database "app.db" at "file:./data/app.db"
+
+Applying migration `20261012232023_add_title_key`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20261012232023_add_title_key/
+    └─ migration.sql
+
+Your database is now in sync with your schema.
+
+Loaded Prisma config from prisma7.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": SQLite database "app.db" at "file:./data/app.db"
+
+2 migrations found in prisma/migrations
+
+Database schema is up to date!
+      title            titleKey
+-----------------  -----------------
+Write the report   write the report
+Review the schema  review the schema
+Fix the login bug  fix the login bug</code></pre>
+        </div>
+        <p>Your three tasks survived, each with its <code>titleKey</code>. You now have two migrations, and one of them you edited.</p>
+        <h3>3.5 Regenerate, and let the types tell you</h3>
+        <p>The migration changed the database. The generated client still describes the old schema, so generate it again, and check the code:</p>
+        <pre><code>npx prisma@7 generate
+npm run typecheck</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>✔ Generated Prisma Client (7.10.0) to ./src/generated/prisma in 38ms
+
+src/labs/old-data.ts(6,5): error TS2741: Property 'titleKey' is missing in type '{ title: string; status: "done"; }' but required in type 'TaskCreateManyInput'.
+src/labs/old-data.ts(7,5): error TS2741: Property 'titleKey' is missing in type '{ title: string; description: string; }' but required in type 'TaskCreateManyInput'.
+src/labs/old-data.ts(8,5): error TS2741: Property 'titleKey' is missing in type '{ title: string; status: "in_progress"; }' but required in type 'TaskCreateManyInput'.</code></pre>
+          <p>(The first lines of <code>generate</code>'s output, and possibly the update box, are left out here.)</p>
+        </div>
+        <p>That is the typed client working: the schema now requires <code>titleKey</code>, so the old script no longer compiles. <code>old-data.ts</code> did its job, so delete it:</p>
+        <pre><code>rm src/labs/old-data.ts</code></pre>
+        <div class="callout note">
+          <p class="callout-title">If a migration fails halfway</p>
+          <p>If your hand-edited migration has a mistake, <code>migrate dev</code> stops with an error such as <code>P3018</code> and <code>NOT NULL constraint failed</code>. On SQLite the half-finished attempt can leave a leftover <code>new_Task</code> table behind. In development the quickest recovery is to fix the SQL file, delete the database file (<code>rm data/app.db</code>), and run <code>npx prisma@7 migrate dev</code> again: it rebuilds the database from all the migrations. <strong>Never delete a database like that if the data matters.</strong> On a real database you use <code>prisma migrate resolve</code> instead, which is outside this course.</p>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 3</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c3-7"><label for="c3-7"><code>prisma/migrations/</code> has two folders, and <code>migrate status</code> says the schema is up to date.</label></li>
+            <li><input type="checkbox" id="c3-8"><label for="c3-8">You edited the <code>INSERT ... SELECT</code> in the second migration, and the 3 tasks have a <code>titleKey</code>.</label></li>
+            <li><input type="checkbox" id="c3-9"><label for="c3-9">You regenerated the client, saw the type error in <code>old-data.ts</code>, and deleted that file.</label></li>
+            <li><input type="checkbox" id="c3-10"><label for="c3-10">You can say why you must not edit a migration after it has been applied.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add prisma schema and migrations"
+git push</code></pre>
+      </section>
+
+      <section id="s4">
+        <h2><span class="num">4.</span>The Prisma client <span class="time">40 min</span></h2>
+        <p>You now have a typed client. Create <code>src/labs/prisma-tour.ts</code>. It walks through the operations you will use, one at a time. Read the comments:</p>
+        <pre><code>import { prisma } from "../db.ts";
+import type { Prisma } from "../generated/prisma/client.ts";
+
+// create: returns the new row, with its generated id and timestamps.
+// titleKey is required now, so you have to pass it. The service layer will do that for you.
+const task = await prisma.task.create({
+  data: { title: "Learn Prisma", titleKey: "learn prisma", description: "Read the docs" },
+});
+console.log("created:", task.title, task.status);
+
+// nested write: create the task and connect-or-create its tags in one call
+const tagged = await prisma.task.create({
+  data: {
+    title: "Tag me",
+    titleKey: "tag me",
+    tags: {
+      connectOrCreate: ["learning", "prisma"].map((name) =&gt; ({ where: { name }, create: { name } })),
+    },
+  },
+  include: { tags: true },
+});
+console.log("tags:", tagged.tags.map((tag) =&gt; tag.name).sort());
+
+// findMany with where, orderBy, skip and take
+const page = await prisma.task.findMany({
+  where: { status: "todo", title: { contains: "learn" } },
+  orderBy: { createdAt: "desc" },
+  skip: 0,
+  take: 10,
+});
+console.log("found:", page.length);
+
+// select: only the fields you name come back. include: the task plus its relations.
+const small = await prisma.task.findUnique({ where: { id: task.id }, select: { id: true, title: true } });
+console.log("select:", small);
+
+// update and count
+await prisma.task.update({ where: { id: task.id }, data: { status: "done" } });
+console.log("done tasks:", await prisma.task.count({ where: { status: "done" } }));
+
+// $transaction: both changes happen, or neither does
+const [removed] = await prisma.$transaction([
+  prisma.task.deleteMany({ where: { title: { in: ["Learn Prisma", "Tag me"] } } }),
+  prisma.tag.deleteMany({ where: { name: { in: ["learning", "prisma"] } } }),
+]);
+console.log("removed tasks:", removed.count);
+
+// $queryRaw: plain SQL when you need it. The tagged template turns ${} into safe parameters.
+const status = "todo";
+const rows = await prisma.$queryRaw&lt;{ n: bigint }[]&gt;`SELECT COUNT(*) AS n FROM "Task" WHERE status = ${status}`;
+console.log("raw count:", Number(rows[0]?.n));
+
+// The type of a where clause is generated for you
+const where: Prisma.TaskWhereInput = { OR: [{ status: "todo" }, { title: { contains: "x" } }] };
+console.log("where:", JSON.stringify(where));
+await prisma.$disconnect();</code></pre>
+        <pre><code>npx tsx --env-file-if-exists=.env src/labs/prisma-tour.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>created: Learn Prisma todo
+tags: [ 'learning', 'prisma' ]
+found: 1
+select: { id: '9b9d7a87-9e51-4c8d-bfa6-f7192f4fc5c9', title: 'Learn Prisma' }
+done tasks: 2
+removed tasks: 2
+raw count: 1
+where: {"OR":[{"status":"todo"},{"title":{"contains":"x"}}]}</code></pre>
+          <p>The <code>id</code> is your own. <code>done tasks: 2</code> is "Write the report" from section 3 plus the one this script marked done. The script cleans up after itself, so you can run it again.</p>
+        </div>
+        <p>What each part shows:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Code</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>create</code></td><td>Inserts a row and returns it, with the <code>id</code> and timestamps Prisma filled in</td></tr>
+              <tr><td><code>tags: { connectOrCreate: [...] }</code></td><td>A <strong>nested write</strong>: create the task, and for each tag name either connect the existing tag or create it, in one call</td></tr>
+              <tr><td><code>findMany</code> with <code>where</code>, <code>orderBy</code>, <code>skip</code>, <code>take</code></td><td>Filtering, sorting and pagination. <code>contains</code> is a <code>LIKE '%...%'</code>, and <code>skip</code>/<code>take</code> are <code>OFFSET</code>/<code>LIMIT</code> from M06. Other filters: <code>equals</code>, <code>in</code>, <code>gte</code>, <code>lt</code>, <code>AND</code>, <code>OR</code>, <code>NOT</code></td></tr>
+              <tr><td><code>select</code></td><td>Return only the fields you name</td></tr>
+              <tr><td><code>include</code></td><td>Return the whole row <strong>plus</strong> its relations (used above to get the tags). Use <code>select</code> to be exact and <code>include</code> to add relations</td></tr>
+              <tr><td><code>update</code>, <code>count</code>, <code>delete</code></td><td>What they say. <code>upsert</code> updates a row, or creates it if it does not exist. <code>createMany</code> inserts many rows</td></tr>
+              <tr><td><code>$transaction([...])</code></td><td>Runs the operations as one transaction (M06): all happen, or none. There is also an interactive form, <code>$transaction(async (tx) =&gt; { ... })</code>, for when one step depends on the last</td></tr>
+              <tr><td><code>$queryRaw</code></td><td>Raw SQL. The <strong>tagged template</strong> (backticks) turns each <code>${}</code> into a parameter, so it is safe from injection. Never build the string by hand</td></tr>
+              <tr><td><code>Prisma.TaskWhereInput</code></td><td>A type generated from your schema, so a filter you write is checked</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Prisma can also show you the SQL it runs. Create <code>src/labs/query-log.ts</code>. It makes a second client with <code>log: ["query"]</code>:</p>
+        <pre><code>import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaClient } from "../generated/prisma/client.ts";
+
+// A second client with query logging on, to see the SQL Prisma writes for you
+const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? "file:./data/app.db" });
+const prisma = new PrismaClient({ adapter, log: ["query"] });
+
+await prisma.task.findMany({ where: { status: "todo" }, select: { id: true, title: true }, take: 2 });
+await prisma.$disconnect();</code></pre>
+        <pre><code>npx tsx --env-file-if-exists=.env src/labs/query-log.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>prisma:query SELECT `main`.`Task`.`id`, `main`.`Task`.`title` FROM `main`.`Task` WHERE `main`.`Task`.`status` = ? ORDER BY `main`.`Task`.`id` ASC LIMIT ? OFFSET ?</code></pre>
+          <p>The <code>?</code> marks are parameters: the value <code>'todo'</code> is sent separately, which is why Prisma is safe from SQL injection. This is the <code>SELECT ... WHERE ... LIMIT</code> you wrote by hand in M06.</p>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 4</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c4-11"><label for="c4-11">The tour script prints the output above.</label></li>
+            <li><input type="checkbox" id="c4-12"><label for="c4-12">You can say the difference between <code>select</code> and <code>include</code>.</label></li>
+            <li><input type="checkbox" id="c4-13"><label for="c4-13">You saw the SQL behind a Prisma query, with <code>?</code> parameters.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>The service layer: replacing the in-memory store <span class="time">55 min</span></h2>
+        <p>The Task API's routes call <code>src/store/tasks.ts</code>, which keeps tasks in a <code>Map</code>. You will replace it with a <strong>service</strong>: a file that holds the data logic, built on Prisma. The routes stay thin, and they do not know where the data lives.</p>
+        <h3>5.1 The service</h3>
+        <p>Create <code>src/services/tasks.ts</code>:</p>
+        <pre><code>import type { CreateTaskInput, Task, TaskStatus, UpdateTaskInput } from "../domain/task.ts";
+import { prisma } from "../db.ts";
+import type { Prisma } from "../generated/prisma/client.ts";
+
+export type TaskView = Task &amp; { tags: string[] };
+export type TaskInput = CreateTaskInput &amp; { tags?: string[] };
+export type TaskChanges = UpdateTaskInput &amp; { tags?: string[] };
+
+export interface ListQuery {
+  status?: TaskStatus;
+  q?: string;
+  sort: "createdAt" | "title" | "status";
+  order: "asc" | "desc";
+  page: number;
+  pageSize: number;
+}
+
+export interface ListResult {
+  data: TaskView[];
+  meta: { page: number; pageSize: number; total: number; totalPages: number };
+}
+
+// The fields we send back. `satisfies` checks it against Prisma's own type, and keeps the exact shape.
+const taskSelect = {
+  id: true,
+  title: true,
+  description: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+  tags: { select: { name: true } },
+} satisfies Prisma.TaskSelect;
+
+type TaskRow = Prisma.TaskGetPayload&lt;{ select: typeof taskSelect }&gt;;
+
+// A database row becomes the Task type from M04, plus the tag names
+function toView(row: TaskRow): TaskView {
+  const { tags, description, ...rest } = row;
+  return {
+    ...rest,
+    ...(description !== null &amp;&amp; { description }),
+    tags: tags.map((tag) =&gt; tag.name).sort(),
+  };
+}
+
+const tagLinks = (names: string[]) =&gt; names.map((name) =&gt; ({ where: { name }, create: { name } }));
+
+export async function listTasks(query: ListQuery): Promise&lt;ListResult&gt; {
+  const where: Prisma.TaskWhereInput = {
+    ...(query.status &amp;&amp; { status: query.status }),
+    ...(query.q &amp;&amp; { title: { contains: query.q } }),
+  };
+  const [rows, total] = await prisma.$transaction([
+    prisma.task.findMany({
+      where,
+      orderBy: [{ [query.sort]: query.order }, { id: "asc" }],
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize,
+      select: taskSelect,
+    }),
+    prisma.task.count({ where }),
+  ]);
+  return {
+    data: rows.map(toView),
+    meta: { page: query.page, pageSize: query.pageSize, total, totalPages: Math.ceil(total / query.pageSize) },
+  };
+}
+
+// findUniqueOrThrow throws Prisma error P2025 when there is no such task
+export async function getTask(id: string): Promise&lt;TaskView&gt; {
+  return toView(await prisma.task.findUniqueOrThrow({ where: { id }, select: taskSelect }));
+}
+
+export async function createTask(input: TaskInput): Promise&lt;TaskView&gt; {
+  const { tags = [], ...fields } = input;
+  const row = await prisma.task.create({
+    // titleKey is the lower-case title. It is unique, so "Write docs" and "write DOCS" clash (P2002).
+    data: { ...fields, titleKey: fields.title.toLowerCase(), tags: { connectOrCreate: tagLinks(tags) } },
+    select: taskSelect,
+  });
+  return toView(row);
+}
+
+export async function updateTask(id: string, changes: TaskChanges): Promise&lt;TaskView&gt; {
+  const { tags, ...fields } = changes;
+  const row = await prisma.task.update({
+    where: { id },
+    data: {
+      ...fields,
+      ...(fields.title !== undefined &amp;&amp; { titleKey: fields.title.toLowerCase() }),
+      // when tags are sent they replace the old ones
+      ...(tags &amp;&amp; { tags: { set: [], connectOrCreate: tagLinks(tags) } }),
+    },
+    select: taskSelect,
+  });
+  return toView(row);
+}
+
+export async function deleteTask(id: string): Promise&lt;void&gt; {
+  await prisma.task.delete({ where: { id } });
+}</code></pre>
+        <ul>
+          <li><strong><code>taskSelect ... satisfies Prisma.TaskSelect</code></strong> picks the fields to return, and <code>satisfies</code> (M04) checks them against Prisma's own type while keeping the exact shape. <strong><code>Prisma.TaskGetPayload&lt;{ select: typeof taskSelect }&gt;</code></strong> is the type of a row with exactly those fields. The result type follows the <code>select</code>, so a field you leave out is not in the type.</li>
+          <li><strong><code>toView</code></strong> turns a row into the <code>Task</code> type from M04, plus <code>tags</code> as a list of names. A missing description stays out of the JSON, as in M05.</li>
+          <li><strong><code>createTask</code></strong> fills <code>titleKey</code> with the lower-case title, so a duplicate title (in any capitals) breaks the unique rule. The database refuses it, and you will map that error in section 6.</li>
+          <li><strong><code>findUniqueOrThrow</code></strong>, <strong><code>update</code></strong> and <strong><code>delete</code></strong> throw a Prisma error when the row does not exist. There is no <code>if (!task)</code> check left: the not-found error goes through the error handler.</li>
+          <li><strong><code>listTasks</code></strong> filters, sorts and pages, and returns the rows with a <code>total</code> from a <code>count</code>, both in one <code>$transaction</code>. A second sort on <code>id</code> keeps the order stable when two rows tie.</li>
+        </ul>
+        <h3>5.2 Validation, routes and the server</h3>
+        <p>The list endpoint now takes a query string, and task bodies may carry <code>tags</code>. <strong>Replace</strong> <code>src/validation.ts</code> (your M05 file, extended with <code>tags</code> and a <code>validateListQuery</code>):</p>
+        <pre><code>import { taskStatuses } from "./domain/task.ts";
+import type { TaskStatus } from "./domain/task.ts";
+import { ValidationError } from "./errors.ts";
+import type { ErrorDetail } from "./errors.ts";
+import type { ListQuery, TaskChanges, TaskInput } from "./services/tasks.ts";
+
+const isStatus = (value: unknown): value is TaskStatus =&gt;
+  typeof value === "string" &amp;&amp; (taskStatuses as readonly string[]).includes(value);
+
+// Each check adds a problem to the list. At the end, one error carries all of them.
+function checkFields(body: Record&lt;string, unknown&gt;, details: ErrorDetail[]): void {
+  if ("title" in body) {
+    if (typeof body.title !== "string" || body.title.trim() === "") {
+      details.push({ path: "title", message: "Must be a non-empty string" });
+    } else if (body.title.length &gt; 100) {
+      details.push({ path: "title", message: "Must be 100 characters or fewer" });
+    }
+  }
+  if ("description" in body &amp;&amp; typeof body.description !== "string") {
+    details.push({ path: "description", message: "Must be a string" });
+  }
+  if ("tags" in body) {
+    const ok =
+      Array.isArray(body.tags) &amp;&amp;
+      body.tags.every((tag) =&gt; typeof tag === "string" &amp;&amp; tag.trim() !== "" &amp;&amp; tag.length &lt;= 30);
+    if (!ok) details.push({ path: "tags", message: "Must be a list of non-empty strings, 30 characters or fewer" });
+  }
+  if ("status" in body &amp;&amp; !isStatus(body.status)) {
+    details.push({ path: "status", message: `Must be one of: ${taskStatuses.join(", ")}` });
+  }
+}
+
+// req.body is undefined when no body was sent, so treat the input as unknown
+function asObject(body: unknown): Record&lt;string, unknown&gt; {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    throw new ValidationError([{ path: "body", message: "Must be a JSON object" }]);
+  }
+  return body as Record&lt;string, unknown&gt;;
+}
+
+export function validateCreateTask(body: unknown): TaskInput {
+  const data = asObject(body);
+  const details: ErrorDetail[] = [];
+  if (!("title" in data)) details.push({ path: "title", message: "Required" });
+  checkFields(data, details);
+  if (details.length &gt; 0) throw new ValidationError(details);
+
+  const input: TaskInput = {
+    title: (data.title as string).trim(),
+    status: isStatus(data.status) ? data.status : "todo",
+  };
+  if (typeof data.description === "string") input.description = data.description;
+  if (Array.isArray(data.tags)) input.tags = cleanTags(data.tags);
+  return input;
+}
+
+export function validateUpdateTask(body: unknown): TaskChanges {
+  const data = asObject(body);
+  const details: ErrorDetail[] = [];
+  checkFields(data, details);
+  const hasAny = ["title", "description", "status", "tags"].some((key) =&gt; key in data);
+  if (!hasAny &amp;&amp; details.length === 0) {
+    details.push({ path: "body", message: "Send at least one of: title, description, status, tags" });
+  }
+  if (details.length &gt; 0) throw new ValidationError(details);
+
+  const changes: TaskChanges = {};
+  if (typeof data.title === "string") changes.title = data.title.trim();
+  if (typeof data.description === "string") changes.description = data.description;
+  if (isStatus(data.status)) changes.status = data.status;
+  if (Array.isArray(data.tags)) changes.tags = cleanTags(data.tags);
+  return changes;
+}
+
+// Trim every tag name and drop repeats
+function cleanTags(tags: string[]): string[] {
+  return [...new Set(tags.map((tag) =&gt; tag.trim()))];
+}
+
+// Query-string values arrive as text, so check each one and turn the numbers into numbers
+export function validateListQuery(query: Record&lt;string, unknown&gt;): ListQuery {
+  const details: ErrorDetail[] = [];
+  const text = (key: string): string | undefined =&gt; (typeof query[key] === "string" ? query[key] : undefined);
+
+  const status = text("status");
+  if (status !== undefined &amp;&amp; !isStatus(status)) {
+    details.push({ path: "status", message: `Must be one of: ${taskStatuses.join(", ")}` });
+  }
+
+  const sort = text("sort") ?? "createdAt";
+  if (!["createdAt", "title", "status"].includes(sort)) {
+    details.push({ path: "sort", message: "Must be one of: createdAt, title, status" });
+  }
+
+  const order = text("order") ?? "desc";
+  if (order !== "asc" &amp;&amp; order !== "desc") details.push({ path: "order", message: "Must be asc or desc" });
+
+  const whole = (key: string, fallback: number, max: number): number =&gt; {
+    const raw = text(key);
+    if (raw === undefined) return fallback;
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value &lt; 1 || value &gt; max) {
+      details.push({ path: key, message: `Must be a whole number from 1 to ${max}` });
+    }
+    return value;
+  };
+  const page = whole("page", 1, 1_000_000);
+  const pageSize = whole("pageSize", 20, 100);
+
+  if (details.length &gt; 0) throw new ValidationError(details);
+  return {
+    ...(status !== undefined &amp;&amp; isStatus(status) &amp;&amp; { status }),
+    ...(text("q") &amp;&amp; { q: text("q") }),
+    sort: sort as ListQuery["sort"],
+    order: order as ListQuery["order"],
+    page,
+    pageSize,
+  };
+}</code></pre>
+        <p><strong>Replace</strong> <code>src/routes/tasks.ts</code>. Each handler is now one line, because validation and data logic have moved out:</p>
+        <pre><code>import { Router } from "express";
+import type { Request, Response } from "express";
+import * as tasks from "../services/tasks.ts";
+import type { ListResult, TaskView } from "../services/tasks.ts";
+import { validateCreateTask, validateListQuery, validateUpdateTask } from "../validation.ts";
+
+export const tasksRouter = Router();
+
+// Request&lt;Params, ResBody, ReqBody, Query&gt;
+tasksRouter.get("/", async (req: Request&lt;{}, ListResult, unknown, Record&lt;string, unknown&gt;&gt;, res: Response&lt;ListResult&gt;) =&gt; {
+  res.json(await tasks.listTasks(validateListQuery(req.query)));
+});
+
+tasksRouter.post("/", async (req: Request&lt;{}, TaskView, unknown&gt;, res: Response&lt;TaskView&gt;) =&gt; {
+  res.status(201).json(await tasks.createTask(validateCreateTask(req.body)));
+});
+
+tasksRouter.get("/:id", async (req: Request&lt;{ id: string }&gt;, res: Response&lt;TaskView&gt;) =&gt; {
+  res.json(await tasks.getTask(req.params.id));
+});
+
+tasksRouter.patch("/:id", async (req: Request&lt;{ id: string }, TaskView, unknown&gt;, res: Response&lt;TaskView&gt;) =&gt; {
+  res.json(await tasks.updateTask(req.params.id, validateUpdateTask(req.body)));
+});
+
+tasksRouter.delete("/:id", async (req: Request&lt;{ id: string }&gt;, res: Response) =&gt; {
+  await tasks.deleteTask(req.params.id);
+  res.sendStatus(204);
+});</code></pre>
+        <p><strong>Replace</strong> <code>src/server.ts</code>. It now also closes the database connection on shutdown:</p>
+        <pre><code>import { app } from "./app.ts";
+import { prisma } from "./db.ts";
+
+const PORT = Number(process.env.PORT ?? 3000);
+
+const server = app.listen(PORT, () =&gt; {
+  console.log(`Task API listening on http://localhost:${PORT}`);
+});
+
+// Stop cleanly: finish the requests in progress, then exit
+function shutdown(signal: string): void {
+  console.log(`${signal} received, closing`);
+  // close the server first, then the database connection
+  server.close(() =&gt; {
+    void prisma.$disconnect().then(() =&gt; process.exit(0));
+  });
+  // If a connection will not close, give up after 10 seconds
+  setTimeout(() =&gt; process.exit(1), 10_000).unref();
+}
+
+process.on("SIGTERM", () =&gt; shutdown("SIGTERM"));
+process.on("SIGINT", () =&gt; shutdown("SIGINT"));</code></pre>
+        <p>The in-memory store has no users left. Delete it, and check the code:</p>
+        <pre><code>rm src/store/tasks.ts
+npm run typecheck</code></pre>
+        <p><code>npm run typecheck</code> should print no errors. Now start the server (<code>npm run dev</code>), and in a second terminal try the new list endpoint. It takes <code>status</code>, <code>q</code> (a title search), <code>sort</code> (<code>createdAt</code>, <code>title</code> or <code>status</code>), <code>order</code> (<code>asc</code> or <code>desc</code>), <code>page</code> and <code>pageSize</code>:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" "localhost:4000/api/v1/tasks?pageSize=2&amp;sort=title&amp;order=asc"
+curl -s -w "\nHTTP %{http_code}\n" "localhost:4000/api/v1/tasks?status=done&amp;q=report"</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"data":[{"id":"502cd1ab-d796-40af-b2ae-c380305320a6","title":"Fix the login bug","status":"in_progress","createdAt":"2026-10-12T23:20:22.181Z","updatedAt":"2026-10-12T23:20:22.181Z","tags":[]},{"id":"3159d524-6553-4227-8dbc-f493f9c2efe8","title":"Review the schema","status":"todo","createdAt":"2026-10-12T23:20:22.181Z","updatedAt":"2026-10-12T23:20:22.181Z","description":"Check the indexes","tags":[]}],"meta":{"page":1,"pageSize":2,"total":3,"totalPages":2}}
+HTTP 200
+{"data":[{"id":"ceb79f29-cd03-4a30-8994-959c701fe9ea","title":"Write the report","status":"done","createdAt":"2026-10-12T23:20:22.181Z","updatedAt":"2026-10-12T23:20:22.181Z","tags":[]}],"meta":{"page":1,"pageSize":20,"total":1,"totalPages":1}}
+HTTP 200</code></pre>
+          <p>The list is now an object with <code>data</code> (the page of tasks) and <code>meta</code> (the counts). It used to be a plain array. Your ids and timestamps differ, and your list holds the 3 tasks from section 3 plus any you created. <code>pageSize</code> is <code>20</code> unless you ask for another number.</p>
+        </div>
+        <p>Create a task with tags, and read it back by its <code>id</code>:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{"title":"Write the tests","tags":["testing","backend"]}'</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"id":"590a8c9a-b323-4479-9131-a4680c898a80","title":"Write the tests","status":"todo","createdAt":"2026-10-12T23:21:12.348Z","updatedAt":"2026-10-12T23:21:12.348Z","tags":["backend","testing"]}
+HTTP 201</code></pre>
+          <p>The tags came back as a sorted list of names. Your <code>id</code> and timestamps are your own, and the task is saved in your database file now: stop and start the server, and it is still there.</p>
+        </div>
+        <p>Two things are not finished yet. A request for a task that does not exist, and a duplicate title, make Prisma throw errors your error handler has never heard of. You fix that in section 6, and run the Bruno collection there.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 5</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c5-14"><label for="c5-14"><code>npm run typecheck</code> is clean, and <code>src/store/tasks.ts</code> is gone.</label></li>
+            <li><input type="checkbox" id="c5-15"><label for="c5-15">The list endpoint returns <code>{ data, meta }</code>, and filters by <code>status</code> and <code>q</code>.</label></li>
+            <li><input type="checkbox" id="c5-16"><label for="c5-16">A task with <code>tags</code> shows them in the response, and it is still there after a server restart.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: replace the in-memory store with a prisma service layer"
+git push</code></pre>
+      </section>
+
+      <section id="s6">
+        <h2><span class="num">6.</span>Prisma errors in the existing error handler <span class="time">30 min</span></h2>
+        <p>Ask for a task that does not exist:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" localhost:4000/api/v1/tasks/does-not-exist</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"error":{"code":"INTERNAL_ERROR","message":"Internal server error","requestId":"7b21686b-04cf-414f-b33e-27005cb0d429"}}
+HTTP 500</code></pre>
+          <p>A <code>500</code>, and in the <strong>server</strong> terminal a long Prisma error about <code>findUniqueOrThrow</code>. Your handler treated it as a bug (a programmer error), because it does not know Prisma's errors yet. It should be a <code>404</code>.</p>
+        </div>
+        <p>When the database refuses something, Prisma throws a <code>PrismaClientKnownRequestError</code> with a <strong>code</strong>. These three are the ones this API meets:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Code</th><th>Meaning</th><th>Example here</th><th>Becomes</th></tr></thead>
+            <tbody>
+              <tr><td><code>P2002</code></td><td>A unique constraint failed</td><td>A second task with the same <code>titleKey</code></td><td><code>409</code> <code>CONFLICT</code></td></tr>
+              <tr><td><code>P2025</code></td><td>The record to read, change or delete does not exist</td><td>Asking for, updating or deleting a task id that is not there</td><td><code>404</code> <code>NOT_FOUND</code></td></tr>
+              <tr><td><code>P2003</code></td><td>A foreign key points at nothing</td><td>A task whose <code>userId</code> is a user that does not exist</td><td><code>409</code> <code>CONFLICT</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>See the three errors for yourself. Create <code>src/labs/prisma-errors.ts</code>:</p>
+        <pre><code>import { prisma } from "../db.ts";
+import { Prisma } from "../generated/prisma/client.ts";
+
+async function show(label: string, action: () =&gt; Promise&lt;unknown&gt;) {
+  try {
+    await action();
+    console.log(label, "-&gt; no error");
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      console.log(label, "-&gt;", error.code, JSON.stringify(error.meta));
+    } else {
+      throw error;
+    }
+  }
+}
+
+// P2002: a unique constraint failed (the title key already exists)
+await show("duplicate title", () =&gt;
+  prisma.task.create({ data: { title: "Write the report", titleKey: "write the report" } }),
+);
+
+// P2025: the record you asked to change does not exist
+await show("update missing", () =&gt; prisma.task.update({ where: { id: "nope" }, data: { title: "x" } }));
+
+// P2003: a foreign key points at nothing
+await show("bad owner", () =&gt; prisma.task.create({ data: { title: "Orphan", titleKey: "orphan", userId: "nope" } }));
+
+await prisma.$disconnect();</code></pre>
+        <pre><code>npx tsx --env-file-if-exists=.env src/labs/prisma-errors.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>duplicate title -&gt; P2002 {"driverAdapterError":{"name":"DriverAdapterError","cause":{"originalCode":"SQLITE_CONSTRAINT_UNIQUE","originalMessage":"UNIQUE constraint failed: Task.titleKey","kind":"UniqueConstraintViolation","constraint":{"fields":["titleKey"]},"table":"Task"}},"modelName":"Task"}
+update missing -&gt; P2025 {"modelName":"Task","operation":"an update"}
+bad owner -&gt; P2003 {"modelName":"Task","driverAdapterError":{"name":"DriverAdapterError","cause":{"originalCode":"SQLITE_CONSTRAINT_FOREIGNKEY","originalMessage":"FOREIGN KEY constraint failed","kind":"ForeignKeyConstraintViolation","constraint":{"foreignKey":{}}}}}</code></pre>
+          <p>Each error has a <code>code</code> and a <code>meta</code> with details. The first one needs a task called "Write the report" to exist, as in section 3.</p>
+        </div>
+        <p>These are <strong>operational errors</strong>, in the sense of M05: they can happen in a correct program, and you know what to tell the client. So they belong in the <strong>same central error handler</strong>, not in a new one. The file <code>src/middleware/errors.ts</code> from M05 changes by one function and a few lines. <strong>Replace</strong> it:</p>
+        <pre><code>import type { ErrorRequestHandler, RequestHandler } from "express";
+import { AppError, ConflictError, NotFoundError } from "../errors.ts";
+import { Prisma } from "../generated/prisma/client.ts";
+
+// Runs only when no route matched
+export const notFound: RequestHandler = (req, _res, next) =&gt; {
+  next(new NotFoundError(`Route ${req.method} ${req.originalUrl} not found`));
+};
+
+// Turn the Prisma error codes we expect into the same AppError classes as before
+function fromPrismaError(error: Prisma.PrismaClientKnownRequestError): AppError | undefined {
+  switch (error.code) {
+    case "P2002": // a unique constraint failed
+      return new ConflictError("A record with this value already exists");
+    case "P2025": // the record to read, change or delete was not found
+      return new NotFoundError("The requested record was not found");
+    case "P2003": // a foreign key points at nothing
+      return new ConflictError("This record refers to another record that does not exist");
+    default:
+      return undefined;
+  }
+}
+
+// express.json() reports a body that is not valid JSON with this shape
+function isBodyParseError(error: unknown): boolean {
+  return typeof error === "object" &amp;&amp; error !== null &amp;&amp; "type" in error &amp;&amp; error.type === "entity.parse.failed";
+}
+
+// Four arguments: this is how Express knows it is the error handler
+export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, next) =&gt; {
+  if (res.headersSent) return next(error);
+
+  let status = 500;
+  let code = "INTERNAL_ERROR";
+  let message = "Internal server error"; // never leak the real message of a bug
+  let details;
+
+  const appError =
+    error instanceof AppError
+      ? error
+      : error instanceof Prisma.PrismaClientKnownRequestError
+        ? fromPrismaError(error)
+        : undefined;
+
+  if (appError) {
+    ({ status, code, message, details } = appError);
+  } else if (isBodyParseError(error)) {
+    status = 400;
+    code = "BAD_REQUEST";
+    message = "Request body is not valid JSON";
+  } else {
+    console.error(error); // a programmer error: log it, do not send it
+  }
+
+  res.status(status).json({
+    error: {
+      code,
+      message,
+      ...(details ? { details } : {}),
+      requestId: res.locals.requestId,
+    },
+  });
+};</code></pre>
+        <ul>
+          <li><strong><code>fromPrismaError</code></strong> is a <code>switch</code> on the code. It returns the same <code>ConflictError</code> and <code>NotFoundError</code> classes you wrote in M05, so the answer has the same envelope as every other error.</li>
+          <li>In <code>errorHandler</code>, an <code>AppError</code> is used as before, a <code>PrismaClientKnownRequestError</code> is first turned into an <code>AppError</code>, and anything else is still a bug: a generic <code>500</code>, with the real error logged.</li>
+          <li>An unknown Prisma code returns <code>undefined</code>, so it falls through to the <code>500</code>.</li>
+        </ul>
+        <p>Save, and ask again for the missing task, and for a duplicate title:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" localhost:4000/api/v1/tasks/does-not-exist
+curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{"title":"WRITE THE TESTS"}'</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"error":{"code":"NOT_FOUND","message":"The requested record was not found","requestId":"00b92ab9-e8cf-4d35-8bc9-8d815a1c1977"}}
+HTTP 404
+{"error":{"code":"CONFLICT","message":"A record with this value already exists","requestId":"a12c35b2-0da8-46a7-a4d0-cd5a1c0eafd8"}}
+HTTP 409</code></pre>
+          <p>The missing task is a <code>404</code> now, and the duplicate (the title "Write the tests" in capitals, which you created in section 5) is a <code>409</code>.</p>
+        </div>
+        <p><code>P2025</code> you just saw. <code>P2003</code> needs a foreign key to break, and the API has no route that sets <code>userId</code>, so add a temporary route to <code>src/app.ts</code> <strong>above</strong> <code>app.use(notFound);</code>, and import <code>prisma</code> at the top (<code>import { prisma } from "./db.ts";</code>):</p>
+        <pre><code>app.get("/api/v1/bad-owner", async () =&gt; {
+  await prisma.task.create({ data: { title: "Orphan", titleKey: "orphan", userId: "nope" } });
+});</code></pre>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" localhost:4000/api/v1/bad-owner</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"error":{"code":"CONFLICT","message":"This record refers to another record that does not exist","requestId":"ca3b5771-f462-4a5b-872a-402797e24cab"}}
+HTTP 409</code></pre>
+        </div>
+        <p>Delete the temporary route and the <code>prisma</code> import again.</p>
+        <h3>6.1 Run the Bruno collection</h3>
+        <p>Because the list is now <code>{ data, meta }</code>, two requests from M05 need a one-line change each. Replace <code>bruno/03-list-tasks.bru</code>:</p>
+        <pre><code>meta {
+  name: List tasks
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/tasks
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+}
+
+tests {
+  test("the new task is in the list", function () {
+    expect(res.body.data.some((task) =&gt; task.id === bru.getVar("taskId"))).to.equal(true);
+  });
+}</code></pre>
+        <p>And <code>bruno/06-filter-by-status.bru</code>:</p>
+        <pre><code>meta {
+  name: Filter by status
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/tasks?status=in_progress
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isArray
+}</code></pre>
+        <p>Now every error path is handled, so run the whole collection against v2 (the server must be running):</p>
+        <pre><code>npm run bruno</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 bruno
+&gt; cd bruno &amp;&amp; bru run --env local
+
+01-health (200 OK) - 12 ms
+...
+📊 Execution Summary
+┌───────────────┬────────────────┐
+│ Metric        │     Result     │
+├───────────────┼────────────────┤
+│ Status        │     ✓ PASS     │
+├───────────────┼────────────────┤
+│ Requests      │ 15 (15 Passed) │
+├───────────────┼────────────────┤
+│ Tests         │      1/1       │
+├───────────────┼────────────────┤
+│ Assertions    │     35/35      │
+├───────────────┼────────────────┤
+│ Duration (ms) │      374       │
+└───────────────┴────────────────┘</code></pre>
+          <p>All 15 requests and 35 assertions pass against the database-backed API, including the duplicate-title conflict, the validation errors and the 404s. Only the two list assertions changed.</p>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 6</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c6-17"><label for="c6-17">You saw <code>P2002</code>, <code>P2025</code> and <code>P2003</code> from the script.</label></li>
+            <li><input type="checkbox" id="c6-18"><label for="c6-18">A duplicate title returns <code>409</code>, a missing task returns <code>404</code>, and the bad owner returns <code>409</code>, all in the usual envelope.</label></li>
+            <li><input type="checkbox" id="c6-19"><label for="c6-19"><code>npm run bruno</code> passes: 15 requests and 35 assertions.</label></li>
+            <li><input type="checkbox" id="c6-20"><label for="c6-20">You changed the existing error handler, and did not add a second one.</label></li>
+            <li><input type="checkbox" id="c6-21"><label for="c6-21">You can say why <code>P2025</code> replaced the old <code>if (!task)</code> checks.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: map prisma errors into the central error handler"
+git push</code></pre>
+      </section>
+
+      <section id="s7">
+        <h2><span class="num">7.</span>Seeding, reset and generated types <span class="time">30 min</span></h2>
+        <h3>7.1 A seed script</h3>
+        <p>A <strong>seed</strong> script fills the database with starting data, so you can always rebuild the same one. Create <code>prisma/seed.ts</code>. It deletes everything first, so running it twice gives the same result. It is repetitive, so you may paste it:</p>
+        <pre><code>import { prisma } from "../src/db.ts";
+import type { TaskStatus } from "../src/generated/prisma/client.ts";
+
+// Start from empty, so the seed gives the same database every time
+await prisma.task.deleteMany();
+await prisma.tag.deleteMany();
+await prisma.user.deleteMany();
+
+await prisma.user.createMany({
+  data: [
+    { email: "ana@example.com", name: "Ana" },
+    { email: "ben@example.com", name: "Ben" },
+    { email: "cara@example.com", name: "Cara" },
+  ],
+});
+
+const tasks: { title: string; status: TaskStatus; owner?: string; tags: string[] }[] = [
+  { title: "Set up the project", status: "done", owner: "ana@example.com", tags: ["backend"] },
+  { title: "Design the schema", status: "done", owner: "ana@example.com", tags: ["backend", "feature"] },
+  { title: "Build the login page", status: "in_progress", owner: "cara@example.com", tags: ["frontend", "feature"] },
+  { title: "Fix the login redirect", status: "todo", owner: "cara@example.com", tags: ["bug", "frontend"] },
+  { title: "Add the task list endpoint", status: "in_progress", owner: "ben@example.com", tags: ["backend"] },
+  { title: "Write the API docs", status: "todo", owner: "ana@example.com", tags: ["docs"] },
+  { title: "Fix the date bug", status: "todo", tags: ["bug"] },
+  { title: "Plan the next sprint", status: "todo", tags: [] },
+];
+
+for (const task of tasks) {
+  await prisma.task.create({
+    data: {
+      title: task.title,
+      titleKey: task.title.toLowerCase(),
+      status: task.status,
+      ...(task.owner &amp;&amp; { user: { connect: { email: task.owner } } }),
+      tags: { connectOrCreate: task.tags.map((name) =&gt; ({ where: { name }, create: { name } })) },
+    },
+  });
+}
+
+console.log(
+  `Seeded ${await prisma.user.count()} users, ${await prisma.task.count()} tasks, ${await prisma.tag.count()} tags`,
+);
+await prisma.$disconnect();</code></pre>
+        <p>Tell Prisma about it, so <code>migrate reset</code> can run it. In <code>prisma7.config.ts</code>, add a <code>seed</code> line under <code>migrations</code>:</p>
+        <pre><code>// This file was generated by Prisma, and assumes you have installed the following:
+// npm install --save-dev prisma dotenv
+import "dotenv/config";
+import { defineConfig } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+    seed: "tsx --env-file-if-exists=.env prisma/seed.ts",
+  },
+  datasource: {
+    url: process.env["DATABASE_URL"],
+  },
+});</code></pre>
+        <p>Add scripts for the four jobs you will repeat:</p>
+        <pre><code>npm pkg set scripts.db:generate="prisma generate"
+npm pkg set scripts.db:migrate="prisma migrate dev"
+npm pkg set scripts.db:seed="tsx --env-file-if-exists=.env prisma/seed.ts"
+npm pkg set scripts.db:reset="prisma migrate reset --force"</code></pre>
+        <p>(Inside an npm script, <code>prisma</code> means the copy installed in your project, which is version 7. The <code>@7</code> matters for commands you type in the terminal, where <code>npx</code> might otherwise fetch a different version.)</p>
+        <pre><code>npm run db:seed</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 db:seed
+&gt; tsx --env-file-if-exists=.env prisma/seed.ts
+
+Seeded 3 users, 8 tasks, 5 tags</code></pre>
+        </div>
+        <p>The Prisma tool can run the same script through the config you just edited:</p>
+        <pre><code>npx prisma@7 db seed</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Loaded Prisma config from prisma7.config.ts.
+
+Running seed command `tsx --env-file-if-exists=.env prisma/seed.ts` ...
+Seeded 3 users, 8 tasks, 5 tags
+
+🌱  The seed command has been executed.</code></pre>
+        </div>
+        <h3>7.2 Rebuild from nothing</h3>
+        <p>The promise of migrations is: with only your migration files and a seed script, anyone can build the database from scratch. <code>npm run db:reset</code> does exactly this to your development database: it drops everything, applies every migration and runs the seed. It destroys the data in that database on purpose, which is why it is development-only. (This command was not run for this page, so its output is not shown. Run it and read what it prints: each migration applied, then the seed.)</p>
+        <p>You can prove the same thing safely without touching your data, on a second database file. <code>migrate deploy</code> is the command for a fresh database: it only applies existing migrations. Set <code>DATABASE_URL</code> for just these two commands (this form works in Git Bash, macOS and Linux):</p>
+        <pre><code>DATABASE_URL="file:./data/fresh.db" npx prisma@7 migrate deploy
+DATABASE_URL="file:./data/fresh.db" npm run db:seed
+sqlite3 data/fresh.db ".tables" "SELECT COUNT(*) FROM Task;"</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Loaded Prisma config from prisma7.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": SQLite database "fresh.db" at "file:./data/fresh.db"
+
+SQLite database fresh.db created at file:./data/fresh.db
+
+2 migrations found in prisma/migrations
+
+Applying migration `20261012232021_init`
+Applying migration `20261012232023_add_title_key`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20261012232021_init/
+    └─ migration.sql
+  └─ 20261012232023_add_title_key/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+
+&gt; js-training@1.0.0 db:seed
+&gt; tsx --env-file-if-exists=.env prisma/seed.ts
+
+Seeded 3 users, 8 tasks, 5 tags
+Tag     Task     User     _TagToTask     _prisma_migrations
+8</code></pre>
+        </div>
+        <p>A new database file, built only from your two migrations, with the seed data in it. Remove it:</p>
+        <pre><code>rm data/fresh.db</code></pre>
+        <p>Now run <code>npm run bruno</code> against your seeded database once more (the server must be running). It passes again, because the collection cleans up the tasks it creates.</p>
+        <h3>7.3 Types that come from the schema</h3>
+        <p>You have been using them already: <code>Prisma.TaskWhereInput</code> in the tour, and <code>Prisma.TaskSelect</code> and <code>Prisma.TaskGetPayload</code> in the service. They are generated from <code>schema.prisma</code>, so they change when the schema changes, and the compiler tells you everywhere that needs updating (you saw that in section 3.5). Others you will meet: <code>Prisma.TaskCreateInput</code> (the data to create a task), <code>Prisma.TaskUpdateInput</code>, and the model type <code>Task</code> itself, which you can import from <code>src/generated/prisma/client.ts</code>. This course keeps its own <code>Task</code> type from M04 for the API, and maps to it in <code>toView</code>.</p>
+        <p><strong>Prisma Studio</strong> is a graphical way to look at your data. Open it with <code>npx prisma@7 studio</code>, and it opens in your browser. (Not run for this page, because it needs a browser.) Press <code>Ctrl+C</code> in the terminal to stop it.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 7</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c7-22"><label for="c7-22"><code>npm run db:seed</code> prints <code>Seeded 3 users, 8 tasks, 5 tags</code>.</label></li>
+            <li><input type="checkbox" id="c7-23"><label for="c7-23">The <code>fresh.db</code> rebuild worked: two migrations applied, then 8 tasks.</label></li>
+            <li><input type="checkbox" id="c7-24"><label for="c7-24"><code>npm run bruno</code> is still green against the seeded database.</label></li>
+            <li><input type="checkbox" id="c7-25"><label for="c7-25">You can say the difference between <code>migrate dev</code> and <code>migrate deploy</code>.</label></li>
+          </ul>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: add database seed and reset scripts"
+git push</code></pre>
+      </section>
+
+      <section id="s8">
+        <h2><span class="num">8.</span>Concepts: team migrations, PostgreSQL, MongoDB, Prisma 8 <span class="time">20 min</span></h2>
+        <p>Nothing to build here: this section is the shape of the answers to questions you will be asked.</p>
+        <p><strong>Migrations in a team.</strong> Two people each change the schema on their own branch, so each makes a new migration. When the branches meet, the migration folders sit side by side, and their order (it comes from the date in the name) may not match the order the changes make sense in, or both may change the same table. Prisma will tell you the database and the migration history have drifted. The way out is to merge the schema file first (the real source of truth), delete <strong>your</strong> unmerged migration, and create it again with <code>migrate dev</code> on top of the merged history. You never delete or edit a migration that has been merged and applied elsewhere. In CI and in production you only ever run <code>migrate deploy</code>, and you run <code>prisma generate</code> (the generated client is not in Git).</p>
+        <p><strong>PostgreSQL.</strong> The change from SQLite is small, and it is the point of an ORM: you set <code>provider = "postgresql"</code> in the datasource, use <code>@prisma/adapter-pg</code> in place of the better-sqlite3 adapter, and your queries do not change. What does change: a real server (a connection address with a user and a password), <strong>connection pooling</strong> (many app instances share a limited number of connections, so you use a pooler), and richer types (real <code>enum</code>s checked by the database, <code>Json</code>, arrays, <code>Decimal</code>). Migrations are regenerated for the new database, because the SQL is different. M06 and this module are SQLite only, by design.</p>
+        <p><strong>MongoDB.</strong> A <strong>document</strong> database: it stores JSON-like documents in collections, with no tables, no fixed columns and no joins. Related data is often <strong>embedded</strong> inside one document (a task with its tags inside it) instead of linked through foreign keys. It is flexible when data is a self-contained document, and awkward when you need many relationships and consistency across records. Relational (M06) fits the Task API's users, tasks and tags well. Prisma supports MongoDB, but not in this course.</p>
+        <p><strong>Prisma 8.</strong> A new major version, still a release candidate when this was written. It is not compatible with this course's setup: its command-line tool does not read the schema the way version 7 does, and its SQLite support is experimental. That is why everything here is pinned to <code>@7</code>. The Prisma documentation now defaults to version 8, so when you look something up, make sure the page is the version 7 one (the address contains <code>/v7/</code>).</p>
+      </section>
+
+      <section id="check">
+        <h2>Check your understanding <span class="time">10 min</span></h2>
+        <p>Answer each one in your head, then open it to compare.</p>
+        <details>
+          <summary>What is the difference between <code>migrate dev</code> and <code>migrate deploy</code>?</summary>
+          <p><code>migrate dev</code> is for development: it compares your schema with the migrations, writes a new migration file if they differ, applies it, and may reset or ask questions. <code>migrate deploy</code> only applies migrations that already exist and have not run, never creates one, and never asks. It is what a test database, CI or production uses, so the same files give the same database everywhere.</p>
+        </details>
+        <details>
+          <summary>Why did the second migration need a hand edit, and what did you change?</summary>
+          <p>It added a required column (<code>titleKey</code>) to a table that already had rows. Prisma's SQL copied the old columns across and left the new one empty, so <code>NOT NULL</code> would reject the rows. You changed the <code>INSERT ... SELECT</code> to fill the new column from existing data with <code>lower("title")</code>. That is a backfill. Prisma could not guess what value the existing rows should get.</p>
+        </details>
+        <details>
+          <summary>Why must you never edit a migration that has been applied?</summary>
+          <p>The database records that the migration ran, and Prisma checks its file against that record. A changed file no longer matches what was run, and other databases (a teammate's, the server) that already ran the old version would end up different from ones that run the new version. To change something, add a new migration.</p>
+        </details>
+        <details>
+          <summary>What does <code>findUniqueOrThrow</code> give you, and how do <code>P2002</code>, <code>P2025</code> and <code>P2003</code> reach the client?</summary>
+          <p><code>findUniqueOrThrow</code> throws Prisma error <code>P2025</code> when the row is not there, so you do not write an <code>if (!task)</code> check. Every Prisma error is thrown up to Express 5, which forwards it to the central error handler. There <code>fromPrismaError</code> turns <code>P2002</code> (unique) into <code>409</code>, <code>P2025</code> (not found) into <code>404</code> and <code>P2003</code> (foreign key) into <code>409</code>, using the same <code>AppError</code> classes and the same envelope as before.</p>
+        </details>
+        <details>
+          <summary>Why is the generated client not committed, and when do you run <code>prisma generate</code>?</summary>
+          <p>It is code generated from <code>schema.prisma</code>, so committing it would only add noise and merge conflicts. Anyone who clones the repo makes it with <code>prisma generate</code>. You run it after installing, after every schema change (<code>migrate dev</code> does not do it in Prisma 7), and in CI before the type check.</p>
+        </details>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <details>
+          <summary>A Prisma command prints a version starting with <code>8</code>, or the schema is not read</summary>
+            <p>You ran a command that fetched Prisma 8. Use <code>npx prisma@7 ...</code> for every command, check <code>package.json</code> has <code>^7</code> for <code>prisma</code> and <code>@prisma/client</code>, and run <code>npm install</code> again. Never run the commands in Prisma's "update available" box.</p>
+        </details>
+        <details>
+          <summary><code>Cannot find module './generated/prisma/client.ts'</code>, or <code>@prisma/client did not initialize</code></summary>
+            <p>The client has not been generated, or is out of date. Run <code>npx prisma@7 generate</code>. It must also be run after a fresh <code>git clone</code> and after every schema change.</p>
+        </details>
+        <details>
+          <summary><code>PrismaClient needs to be constructed with a non-empty, valid PrismaClientOptions</code> or <code>adapter</code> errors</summary>
+            <p>Prisma 7 needs a driver adapter. Check <code>src/db.ts</code> passes <code>{ adapter }</code> to <code>new PrismaClient</code>, and that <code>@prisma/adapter-better-sqlite3</code> is installed.</p>
+        </details>
+        <details>
+          <summary><code>Environment variable not found: DATABASE_URL</code>, or <code>url</code> is undefined</summary>
+            <p><code>DATABASE_URL</code> is missing. Check <code>.env</code> has the line (<code>DATABASE_URL="file:./data/app.db"</code>), and for your own scripts run them with <code>--env-file-if-exists=.env</code> (the npm scripts do). The Prisma tool reads <code>.env</code> through <code>dotenv</code> in <code>prisma7.config.ts</code>.</p>
+        </details>
+        <details>
+          <summary><code>better-sqlite3</code> fails to install, or <code>Could not locate the bindings file</code></summary>
+            <p><code>better-sqlite3</code> downloads a ready-made binary for your system and Node.js version. If that fails (offline, or an unusual system), the install tries to compile it, which needs build tools: on Windows, the Visual Studio Build Tools, on macOS <code>xcode-select --install</code>, on Linux <code>sudo apt install build-essential python3</code>. Then run <code>npm install</code> again. This part was only tested on Linux.</p>
+        </details>
+        <details>
+          <summary><code>migrate dev</code> stops with <code>P3018</code> and <code>NOT NULL constraint failed: new_Task.titleKey</code></summary>
+            <p>Your second migration still has the original <code>INSERT ... SELECT</code>, so the new column is empty. Edit the SQL as in section 3.4. In development, delete <code>data/app.db</code> and run <code>npx prisma@7 migrate dev</code> again to rebuild from the migrations.</p>
+        </details>
+        <details>
+          <summary><code>migrate dev</code> says the database is out of sync, or asks to reset</summary>
+            <p>The database does not match the migration history. This happens if you edited an applied migration, ran <code>db push</code>, or changed the database by hand. In development you can delete <code>data/app.db</code> and run <code>npx prisma@7 migrate dev</code> to rebuild it. Never do that to a database whose data matters.</p>
+        </details>
+        <details>
+          <summary><code>TS2741: Property 'titleKey' is missing ...</code> (or any type error about a field)</summary>
+            <p>The generated client is newer than your code: the schema changed and <code>generate</code> was run. This is the typed client doing its job. Give the field a value, or remove the code that is out of date.</p>
+        </details>
+        <details>
+          <summary><code>npm run bruno</code> fails on <code>03-list-tasks</code> or <code>06-filter-by-status</code></summary>
+            <p>The list now returns <code>{ data, meta }</code>. Check those two <code>.bru</code> files use <code>res.body.data</code> as in section 5.3.</p>
+        </details>
+        <details>
+          <summary><code>Create task</code> fails with <code>409</code> on a second Bruno run</summary>
+            <p>A run that stopped halfway can leave a task behind, and the title rule now lives in the database. Delete the leftover task through the API, or run <code>npm run db:seed</code> to reset your data, and run <code>npm run bruno</code> again.</p>
+        </details>
+        <details>
+          <summary><code>DATABASE_URL="..." npx prisma@7 ...</code> does nothing, or is a syntax error</summary>
+            <p>Setting a variable in front of a command works in Git Bash, macOS and Linux Terminal. It does not work in Windows PowerShell or cmd, so use Git Bash, as the rest of this course does.</p>
+        </details>
+      </section>
+
+      <section id="done">
+        <h2>You're done when</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="d26"><label for="d26"><code>prisma</code> and <code>@prisma/client</code> are locked to <code>^7</code> in <code>package.json</code>, and every Prisma command you ran used <code>npx prisma@7</code>.</label></li>
+          <li><input type="checkbox" id="d27"><label for="d27"><code>prisma/migrations/</code> has two migrations, and you edited the second one by hand.</label></li>
+          <li><input type="checkbox" id="d28"><label for="d28"><code>src/store/tasks.ts</code> is gone, the routes use <code>src/services/tasks.ts</code>, and the list endpoint filters, sorts and pages, returning <code>{ data, meta }</code>.</label></li>
+          <li><input type="checkbox" id="d29"><label for="d29"><code>P2002</code>, <code>P2025</code> and <code>P2003</code> each reach the client as the right status (<code>409</code>, <code>404</code>, <code>409</code>) through your existing error handler.</label></li>
+          <li><input type="checkbox" id="d30"><label for="d30"><code>npm run db:seed</code> fills the database, and you rebuilt a second database from the migrations and the seed alone.</label></li>
+          <li><input type="checkbox" id="d31"><label for="d31"><code>npm run bruno</code> passes against the new API, and <code>npm run typecheck</code> is clean.</label></li>
+          <li><input type="checkbox" id="d32"><label for="d32">You can explain <code>migrate dev</code> vs <code>migrate deploy</code>.</label></li>
+          <li><input type="checkbox" id="d33"><label for="d33">Everything is committed and pushed to your repo.</label></li>
+        </ul>
+        <p>Keep <code>prisma/</code>, <code>src/db.ts</code> and <code>src/services/tasks.ts</code> as they are. M08 replaces the hand-written validation with Zod, and M09 tests the <code>app</code> you export, against its own database.</p>
+      </section>
+
+<nav class="pager" aria-label="Module navigation">
+        <a href="../m06-sql-fundamentals-sqlite/index.html">&larr; M06, SQL Fundamentals with SQLite</a>
+        <a href="../../index.html">All modules</a>
+        <span>Next: M08, Zod Validation &amp; Type Inference (coming soon).</span>
+      </nav>
+    </main>
+  </div>
+</body>
+</html>
