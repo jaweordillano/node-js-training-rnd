@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M08 — Zod Validation &amp; Type Inference</title>
+  <meta name="description" content="Replace the hand-written validation of the Task API with Zod 4 schemas, a typed validate middleware and env validation, and derive the TypeScript types from the same schemas, in your node-js-training project.">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <a class="back" href="../../index.html">&larr; All modules</a>
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#overview">Overview &amp; time plan</a></li>
+        <li><a href="#s1">1. Why validate at runtime, and install</a></li>
+        <li><a href="#s2">2. Zod 4 basics</a></li>
+        <li><a href="#s3">3. Parsing and errors</a></li>
+        <li><a href="#s4">4. Refine, transform and pipe</a></li>
+        <li><a href="#s5">5. The Task schemas and type inference</a></li>
+        <li><a href="#s6">6. The validate middleware, and removing the old validation</a></li>
+        <li><a href="#s7">7. Zod and Prisma, and checking the environment</a></li>
+        <li><a href="#check">Check your understanding</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#done">You're done when</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Module M08 · Week 3 · Days 4-5 · about 3 hours</p>
+        <h1>Zod Validation &amp; Type Inference</h1>
+        <p class="lede">Make bad input impossible to reach your code: describe each request once as a Zod schema, check it before the handler runs, and let TypeScript take its types from the same schema.</p>
+      </header>
+
+      <section id="overview">
+        <h2>Overview &amp; time plan</h2>
+        <p><strong>Builds on:</strong> M05 and M07. You need the <code>node-js-training</code> repo with the Task API from M07: Prisma and SQLite behind a service layer, the error handler from M05, and <code>npm run bruno</code> passing. Everything you write here goes into that same repo, on <code>main</code>, with the add, commit and push steps you know. (The word "module" on this page means the course lessons, M01 to M10.)</p>
+        <p>In M05 you wrote validation by hand, and M07 grew that file to about 100 lines of <code>if</code> checks that you have to keep in step with the types. <strong>Zod</strong> is a library where you describe the data once, as a <strong>schema</strong>. The schema checks data while the program runs, and TypeScript can read the same schema to give you the type. One description, two jobs, and nothing to keep in step.</p>
+        <p>You will:</p>
+        <ul>
+          <li>learn the parts of Zod 4 that a real API uses, in three small practice files;</li>
+          <li>write schemas for the Task API's create, update, list query and <code>:id</code> parameter, and derive the update schema from the create one;</li>
+          <li>build a typed <strong><code>validate</code> middleware</strong>, and work around <code>req.query</code> being read-only in Express 5;</li>
+          <li><strong>delete</strong> <code>src/validation.ts</code>, so no hand-written validation is left;</li>
+          <li>turn a <code>ZodError</code> into the <code>400</code> envelope you fixed in M05, with a <code>details</code> entry for every bad field;</li>
+          <li>keep Zod and Prisma aligned, and check your environment variables with Zod when the app starts.</li>
+        </ul>
+        <ol class="plan">
+          <li><a href="#s1">Why validate at runtime, and install</a> <span class="time">10 min</span></li>
+          <li><a href="#s2">Zod 4 basics</a> <span class="time">25 min</span></li>
+          <li><a href="#s3">Parsing and errors</a> <span class="time">15 min</span></li>
+          <li><a href="#s4">Refine, transform and pipe</a> <span class="time">10 min</span></li>
+          <li><a href="#s5">The Task schemas and type inference</a> <span class="time">30 min</span></li>
+          <li><a href="#s6">The validate middleware, and removing the old validation</a> <span class="time">45 min</span></li>
+          <li><a href="#s7">Zod and Prisma, and checking the environment</a> <span class="time">35 min</span></li>
+          <li><a href="#check">Check your understanding</a> <span class="time">10 min</span></li>
+        </ol>
+        <div class="callout warn">
+          <p class="callout-title">Zod 4, not older tutorials</p>
+          <p>Many articles still show Zod 3. In Zod 4 you write <code>z.email()</code>, <code>z.uuid()</code> and <code>z.url()</code> (not <code>z.string().email()</code>), the error message option is called <code>error</code>, and the error helpers are <code>z.flattenError(...)</code> and <code>z.prettifyError(...)</code> (not <code>error.flatten()</code>). Install <code>zod@4</code> as shown below, and if a snippet from the web does not compile, check which version it is for.</p>
+        </div>
+        <p>This page moves quickly. Type the schemas and the middleware yourself where you can, because that is how they sink in. The new <code>src/middleware/errors.ts</code> (section 6) you may paste: only one branch of it is new. Run each step, and compare with the <em>You should see</em> box. Your ids, timestamps and request IDs will differ from the examples. Commands are written for Git Bash on Windows, and macOS and Linux Terminal. If anything else differs, check <a href="#troubleshooting">Troubleshooting</a>.</p>
+      </section>
+
+      <section id="s1">
+        <h2><span class="num">1.</span>Why validate at runtime, and install <span class="time">10 min</span></h2>
+        <p>TypeScript checks your code <strong>before</strong> it runs, and then it disappears. The JSON a client sends arrives <strong>while</strong> the program runs, and TypeScript cannot see it. In M05 you typed the request body as <code>CreateTaskInput</code> in the route, and a type like that is a promise to the compiler, not a check. <code>as</code> is the same promise. See what a broken promise looks like. Create <code>src/labs/types-vanish.ts</code>:</p>
+        <pre><code>// TypeScript trusts you. It checks your code, not the data that arrives while the program runs.
+interface CreateBody {
+  title: string;
+}
+
+const text = '{"title": 42}'; // what a client might send
+const body = JSON.parse(text) as CreateBody; // "as" is a promise to the compiler, not a check
+
+console.log(body.title.toUpperCase());</code></pre>
+        <p>Check the types, then run it:</p>
+        <pre><code>npm run typecheck
+npx tsx src/labs/types-vanish.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>src/labs/types-vanish.ts:9
+console.log(body.title.toUpperCase());
+                       ^
+
+TypeError: body.title.toUpperCase is not a function</code></pre>
+          <p><code>npm run typecheck</code> prints no errors: the types are fine, the data is not. The crash is a <code>TypeError</code> from inside your program, and the path and the lines after it are your own. In an API this would be a <code>500</code> caused by a client's mistake. <strong><code>req.body</code> is untrusted data</strong>, like everything else that comes from outside: the body, the query string, the URL parameters and the environment.</p>
+        </div>
+        <p>So the rule of this module: <strong>check untrusted data at the edge, once, before your logic sees it.</strong> Hand-written checks do that, but they cost you twice: you write the check, and you write the type, and the two drift apart. Open <code>src/validation.ts</code> and look for <code>(data.title as string).trim()</code>: that <code>as</code> is the same broken promise, kept only by the checks above it.</p>
+        <p>Install Zod 4:</p>
+        <pre><code>npm install zod@4
+npm ls zod</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>js-training@1.0.0 /path/to/node-js-training
+└── zod@4.6.7</code></pre>
+          <p>Yours may be a newer <code>4.x</code>. <code>package.json</code> now lists <code>zod</code> with a <code>^4</code> version. If it says <code>3</code>, run <code>npm install zod@4</code> again.</p>
+        </div>
+        <p>Delete the practice file, you will not need it again. Then commit:</p>
+        <pre><code>rm src/labs/types-vanish.ts
+git add .
+git commit -m "chore: add zod"
+git push</code></pre>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 1</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c1-1"><label for="c1-1">You saw a <code>TypeError</code> that <code>npm run typecheck</code> did not warn you about.</label></li>
+            <li><input type="checkbox" id="c1-2"><label for="c1-2"><code>npm ls zod</code> shows a <code>4.x</code> version.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s2">
+        <h2><span class="num">2.</span>Zod 4 basics <span class="time">25 min</span></h2>
+        <p>A schema describes what valid data looks like. <code>schema.parse(data)</code> returns the data if it is valid and throws if it is not. Create <code>src/labs/zod-basics.ts</code> and read the comments as you type:</p>
+        <pre><code>import { z } from "zod";
+
+// A schema describes what valid data looks like. parse() returns the data, or throws.
+const name = z.string().trim().min(1).max(30);
+console.log(name.parse("  Ada  "));
+
+// Top-level formats (Zod 4): z.email(), z.uuid(), z.url()
+console.log(z.email().safeParse("ada@example.com").success);
+console.log(z.uuid().safeParse("not-a-uuid").success);
+console.log(z.url().safeParse("https://zod.dev").success);
+
+// Objects: z.object ignores keys it does not know, z.strictObject rejects them
+const loose = z.object({ title: z.string() });
+const strict = z.strictObject({ title: z.string() });
+console.log(loose.parse({ title: "A", id: "sneaky" }));
+console.log(strict.safeParse({ title: "A", id: "sneaky" }).success);
+
+// Enums, arrays, optional, nullable and default
+const status = z.enum(["todo", "in_progress", "done"]);
+const task = z.object({
+  title: z.string(),
+  status: status.default("todo"),
+  tags: z.array(z.string()).optional(),
+  dueDate: z.string().nullable(),
+});
+console.log(task.parse({ title: "Write M08", dueDate: null }));
+
+// Literals and unions: "one of these exact shapes"
+const event = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("created"), title: z.string() }),
+  z.object({ type: z.literal("deleted"), id: z.uuid() }),
+]);
+console.log(event.parse({ type: "created", title: "A" }));
+
+// Query strings are always text. z.coerce.number() turns "2" into 2 before it checks.
+const page = z.coerce.number().int().min(1);
+console.log(page.parse("2"), page.safeParse("abc").success);</code></pre>
+        <pre><code>npx tsx src/labs/zod-basics.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Ada
+true
+false
+true
+{ title: 'A' }
+false
+{ title: 'Write M08', status: 'todo', dueDate: null }
+{ type: 'created', title: 'A' }
+2 false</code></pre>
+        </div>
+        <p>Go through the output, one line at a time:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Line</th><th>What it showed</th></tr></thead>
+            <tbody>
+              <tr><td><code>Ada</code></td><td><code>.trim()</code> is part of the schema: <code>parse</code> returned the cleaned value, not the input. A schema can <strong>change</strong> data as well as check it</td></tr>
+              <tr><td><code>true</code>, <code>false</code>, <code>true</code></td><td><code>z.email()</code>, <code>z.uuid()</code> and <code>z.url()</code> are top-level checks for common formats</td></tr>
+              <tr><td><code>{ title: 'A' }</code></td><td><code>z.object</code> <strong>strips</strong> keys it does not know. The <code>id</code> the client sneaked in is gone</td></tr>
+              <tr><td><code>false</code></td><td><code>z.strictObject</code> <strong>rejects</strong> unknown keys instead. Use it for input where an extra field is a mistake or an attack</td></tr>
+              <tr><td><code>{ title: 'Write M08', status: 'todo', dueDate: null }</code></td><td><code>.default("todo")</code> filled a missing value, <code>.optional()</code> allowed <code>tags</code> to be absent, and <code>.nullable()</code> allowed <code>null</code></td></tr>
+              <tr><td><code>{ type: 'created', title: 'A' }</code></td><td>A <strong>discriminated union</strong> picks the right shape by looking at one field (<code>type</code>), so the errors are about the right shape</td></tr>
+              <tr><td><code>2 false</code></td><td><code>z.coerce.number()</code> converts text to a number first, then checks it. <code>"abc"</code> becomes <code>NaN</code> and fails</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><code>optional</code> means the key may be missing, <code>nullable</code> means the value may be <code>null</code>, and <code>default</code> fills in a missing value. They are different things. Only the last one changes the data.</p>
+        <p><strong>Why <code>z.coerce</code> matters for an API:</strong> everything in a query string (<code>?page=2</code>) and every URL parameter is <strong>text</strong>. <code>"2"</code> is not the number <code>2</code>. You will use <code>z.coerce.number()</code> for <code>page</code> and <code>pageSize</code> in section 5.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 2</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c2-3"><label for="c2-3">Your output matches, line for line.</label></li>
+            <li><input type="checkbox" id="c2-4"><label for="c2-4">You can say the difference between <code>z.object</code> and <code>z.strictObject</code>, and between <code>optional</code> and <code>nullable</code>.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s3">
+        <h2><span class="num">3.</span>Parsing and errors <span class="time">15 min</span></h2>
+        <p><code>parse</code> throws when the data is wrong. <code>safeParse</code> never throws: it returns <code>{ success: true, data }</code> or <code>{ success: false, error }</code>. Use <code>safeParse</code> when a bad value is normal and you want to handle it where you stand. Use <code>parse</code> when a bad value should stop the work, and let the error travel up to a central handler. Your middleware will use <code>parse</code>, because your error handler already exists.</p>
+        <p>Create <code>src/labs/zod-errors.ts</code>. The schema has custom messages, set with the <code>error</code> option (in Zod 4, one option for every message), and the data breaks three rules at three depths:</p>
+        <pre><code>import { z } from "zod";
+
+const schema = z.object({
+  title: z.string("Title must be text").min(1, "Title is required"),
+  address: z.object({ email: z.email() }),
+  tags: z.array(z.string()),
+});
+
+const bad = { title: "", address: { email: "nope" }, tags: ["ok", 7] };
+
+// parse() throws a ZodError when the data is wrong
+try {
+  schema.parse(bad);
+} catch (error) {
+  console.log(error instanceof z.ZodError);
+}
+
+// safeParse() never throws. It returns { success: true, data } or { success: false, error }
+const result = schema.safeParse(bad);
+if (!result.success) {
+  // issues is the raw list. Each one has a path and a message (and more)
+  console.log(result.error.issues.map(({ path, message }) =&gt; ({ path, message })));
+  console.log(z.flattenError(result.error));
+  console.log(JSON.stringify(z.treeifyError(result.error), null, 2));
+  console.log(z.prettifyError(result.error));
+}</code></pre>
+        <pre><code>npx tsx src/labs/zod-errors.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>true
+[
+  { path: [ 'title' ], message: 'Title is required' },
+  { path: [ 'address', 'email' ], message: 'Invalid email address' },
+  {
+    path: [ 'tags', 1 ],
+    message: 'Invalid input: expected string, received number'
+  }
+]
+{
+  formErrors: [],
+  fieldErrors: {
+    title: [ 'Title is required' ],
+    address: [ 'Invalid email address' ],
+    tags: [ 'Invalid input: expected string, received number' ]
+  }
+}
+{
+  "errors": [],
+  "properties": {
+    "title": {
+      "errors": [
+        "Title is required"
+      ]
+    },
+    "address": {
+      "errors": [],
+      "properties": {
+        "email": {
+          "errors": [
+            "Invalid email address"
+          ]
+        }
+      }
+    },
+    "tags": {
+      "errors": [],
+      "items": [
+        null,
+        {
+          "errors": [
+            "Invalid input: expected string, received number"
+          ]
+        }
+      ]
+    }
+  }
+}
+✖ Title is required
+  → at title
+✖ Invalid email address
+  → at address.email
+✖ Invalid input: expected string, received number
+  → at tags[1]</code></pre>
+        </div>
+        <p>There are four ways to look at the same <code>ZodError</code>:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tool</th><th>Gives you</th><th>Use it for</th></tr></thead>
+            <tbody>
+              <tr><td><code>error.issues</code></td><td>The raw list. Each issue has a <code>path</code> (an array) and a <code>message</code></td><td>Building your own response. <strong>You will do this in section 6</strong></td></tr>
+              <tr><td><code>z.flattenError(error)</code></td><td><code>fieldErrors</code> by top-level field. <code>address.email</code> is reported under <code>address</code></td><td>Flat forms</td></tr>
+              <tr><td><code>z.treeifyError(error)</code></td><td>A tree that mirrors the data, with <code>properties</code> and <code>items</code></td><td>Nested data</td></tr>
+              <tr><td><code>z.prettifyError(error)</code></td><td>A readable text block</td><td>Logs and terminals. <strong>You will use it in section 7</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Notice that <code>path</code> is <code>['tags', 1]</code>: the second tag, found by its position. Your API needs a path as text, such as <code>tags.1</code>.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 3</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c3-5"><label for="c3-5">You saw the same three problems in all four formats.</label></li>
+            <li><input type="checkbox" id="c3-6"><label for="c3-6">You can say when to use <code>parse</code> and when to use <code>safeParse</code>.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s4">
+        <h2><span class="num">4.</span>Refine, transform and pipe <span class="time">10 min</span></h2>
+        <p>Some rules cannot be written as a type: "the end is after the start". Some values need cleaning: trim, lower-case. Create <code>src/labs/zod-refine.ts</code>:</p>
+        <pre><code>import { z } from "zod";
+
+// refine: your own rule, on one field or across fields
+const dates = z
+  .object({ start: z.coerce.date(), end: z.coerce.date() })
+  .refine((v) =&gt; v.end &gt; v.start, { error: "End must be after start", path: ["end"] });
+
+console.log(dates.safeParse({ start: "2026-10-01", end: "2026-09-01" }).error?.issues[0]?.message);
+
+// transform: change the value after it has passed the checks
+const tag = z.string().trim().toLowerCase();
+console.log(tag.parse("  Backend "));
+
+const csv = z.string().transform((text) =&gt; text.split(",").map((part) =&gt; part.trim()));
+console.log(csv.parse("a, b ,c"));
+
+// pipe: the output of one schema becomes the input of the next
+const age = z.string().transform(Number).pipe(z.number().int().min(0));
+console.log(age.parse("42"), age.safeParse("-1").success);
+
+// input and output types can differ. z.input is what you put in, z.output is what you get out.
+type AgeIn = z.input&lt;typeof age&gt;;
+type AgeOut = z.output&lt;typeof age&gt;;
+const typed: [AgeIn, AgeOut] = ["42", 42];
+console.log(typed);</code></pre>
+        <pre><code>npx tsx src/labs/zod-refine.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>End must be after start
+backend
+[ 'a', 'b', 'c' ]
+42 false
+[ '42', 42 ]</code></pre>
+        </div>
+        <ul>
+          <li><strong><code>.refine(check, { error, path })</code></strong> adds your own rule. It runs after the field checks pass, and it sees the whole object, so it can compare fields (a cross-field rule). <code>path</code> says which field gets the message.</li>
+          <li><strong><code>.transform(fn)</code></strong> changes the value after it passed the checks. <code>.trim()</code> and <code>.toLowerCase()</code> are built-in versions of this idea.</li>
+          <li><strong><code>.pipe(next)</code></strong> sends the output of one schema into another. <code>transform(Number).pipe(z.number()...)</code> converts first, then checks.</li>
+          <li><strong><code>z.input</code> and <code>z.output</code></strong> are the two ends of a schema. <code>age</code> takes a string in and gives a number out, so its input and output types differ. <code>z.infer</code> is another name for <code>z.output</code>.</li>
+        </ul>
+        <p>You will use all of these in the next section, so keep the output in mind: <code>z.input</code> is what the <strong>client sends</strong>, <code>z.output</code> is what <strong>your code receives</strong>.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 4</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c4-7"><label for="c4-7">The cross-field rule printed <code>End must be after start</code>.</label></li>
+            <li><input type="checkbox" id="c4-8"><label for="c4-8">You can say what <code>z.input</code> and <code>z.output</code> are for the <code>age</code> schema.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>The Task schemas and type inference <span class="time">30 min</span></h2>
+        <p>Now the real thing. Create <code>src/schemas/task.ts</code>. Read the comments: the whole file is about <strong>one</strong> description of a task, and every other schema is <strong>derived</strong> from it.</p>
+        <pre><code>import { z } from "zod";
+
+export const taskStatus = z.enum(["todo", "in_progress", "done"], {
+  error: "Must be one of: todo, in_progress, done",
+});
+
+// The fields a client may send. Every other schema in this file is derived from this one.
+const taskFields = z.strictObject({
+  title: z
+    .string({ error: (issue) =&gt; (issue.input === undefined ? "Required" : "Must be a string") })
+    .trim()
+    .min(1, "Must not be empty")
+    .max(100, "Must be 100 characters or fewer"),
+  description: z.string({ error: "Must be a string" }),
+  status: taskStatus,
+  tags: z
+    .array(z.string().trim().min(1, "Must not be empty").max(30, "Must be 30 characters or fewer"), {
+      error: "Must be a list of tag names",
+    })
+    .transform((names) =&gt; [...new Set(names)]), // drop repeated tags
+});
+
+// Create: a title is required, the rest is optional, and a missing status becomes "todo"
+export const createTaskSchema = taskFields
+  .partial({ description: true, tags: true })
+  .extend({ status: taskStatus.default("todo") });
+
+// Update: every field is optional, but not an empty body
+export const updateTaskSchema = taskFields
+  .partial()
+  .refine((fields) =&gt; Object.keys(fields).length &gt; 0, {
+    error: "Send at least one of: title, description, status, tags",
+  });
+
+// Path parameters: /tasks/:id
+export const taskParamsSchema = z.object({ id: z.uuid({ error: "Must be a valid id" }) });
+
+// A whole number from 1 to max. Query-string values are text, so z.coerce does the conversion.
+const whole = (max: number) =&gt; {
+  const error = `Must be a whole number from 1 to ${max}`;
+  return z.coerce.number({ error }).int({ error }).min(1, { error }).max(max, { error });
+};
+
+// Query string: GET /tasks?status=done&amp;sort=title&amp;page=2
+export const listQuerySchema = z.object({
+  status: taskStatus.optional(),
+  q: z.string().trim().optional(),
+  sort: z.enum(["createdAt", "title", "status"], { error: "Must be one of: createdAt, title, status" }).default("createdAt"),
+  order: z.enum(["asc", "desc"], { error: "Must be asc or desc" }).default("desc"),
+  page: whole(1_000_000).default(1),
+  pageSize: whole(100).default(20),
+});
+
+// The types are derived from the schemas. Nothing is written twice.
+export type TaskStatus = z.infer&lt;typeof taskStatus&gt;;
+export type TaskInput = z.output&lt;typeof createTaskSchema&gt;;
+export type TaskChanges = z.output&lt;typeof updateTaskSchema&gt;;
+export type ListQuery = z.output&lt;typeof listQuerySchema&gt;;</code></pre>
+        <p>Check it compiles, then try the schemas in a practice file, <code>src/labs/schemas-try.ts</code>:</p>
+        <pre><code>import { createTaskSchema, listQuerySchema, updateTaskSchema } from "../schemas/task.ts";
+import type { TaskInput } from "../schemas/task.ts";
+import { z } from "zod";
+
+console.log(createTaskSchema.parse({ title: "  Write M08  ", tags: ["a", "a", " b "] }));
+console.log(updateTaskSchema.parse({ status: "done" }));
+console.log(updateTaskSchema.safeParse({}).error?.issues.map((i) =&gt; i.message));
+console.log(createTaskSchema.safeParse({ id: "x", title: "" }).error?.issues.map((i) =&gt; [i.path.join("."), i.message]));
+console.log(listQuerySchema.parse({}));
+console.log(listQuerySchema.parse({ page: "2", pageSize: "5", status: "done" }));
+console.log(listQuerySchema.safeParse({ page: "0", pageSize: "abc", sort: "x" }).error?.issues.map((i) =&gt; [i.path.join("."), i.message]));
+
+type In = z.input&lt;typeof createTaskSchema&gt;;
+const draft: In = { title: "no status yet" };
+const saved: TaskInput = createTaskSchema.parse(draft);
+console.log(saved.status);</code></pre>
+        <pre><code>npm run typecheck
+npx tsx src/labs/schemas-try.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{ title: 'Write M08', status: 'todo', tags: [ 'a', 'b' ] }
+{ status: 'done' }
+[ 'Send at least one of: title, description, status, tags' ]
+[ [ 'title', 'Must not be empty' ], [ '', 'Unrecognized key: "id"' ] ]
+{ sort: 'createdAt', order: 'desc', page: 1, pageSize: 20 }
+{
+  status: 'done',
+  sort: 'createdAt',
+  order: 'desc',
+  page: 2,
+  pageSize: 5
+}
+[
+  [ 'sort', 'Must be one of: createdAt, title, status' ],
+  [ 'page', 'Must be a whole number from 1 to 1000000' ],
+  [ 'pageSize', 'Must be a whole number from 1 to 100' ]
+]
+todo</code></pre>
+        </div>
+        <p>Read what the schemas did:</p>
+        <ul>
+          <li><strong>Create.</strong> <code>"  Write M08  "</code> came back trimmed, the tags <code>["a", "a", " b "]</code> came back as <code>['a', 'b']</code> (trimmed, repeats dropped), and the missing <code>status</code> became <code>todo</code>.</li>
+          <li><strong>Update.</strong> <code>{ status: "done" }</code> is fine, and <code>{}</code> is rejected by the <code>refine</code>, because a PATCH that changes nothing is a mistake.</li>
+          <li><strong>Unknown fields.</strong> <code>{ id: "x", title: "" }</code> failed for two reasons: the empty title, and the <code>id</code>. The <code>id</code> issue has an empty path, because the problem is the whole object. Your handler will report that as <code>body</code>.</li>
+          <li><strong>List query.</strong> <code>{}</code> gave the defaults, <code>"2"</code> and <code>"5"</code> became the numbers <code>2</code> and <code>5</code>, and the bad values each got the same messages as the hand-written checks in M07.</li>
+        </ul>
+        <p><strong>Deriving instead of repeating.</strong> <code>taskFields</code> is written once. <code>createTaskSchema</code> is made from it with <code>.partial({ ... })</code> (make some fields optional) and <code>.extend({ ... })</code> (replace a field: here <code>status</code> gets a default). <code>updateTaskSchema</code> is <code>.partial()</code> (everything optional) plus a <code>refine</code>. Two more tools do the same job for other cases: <code>.pick({ ... })</code> keeps only some fields, and <code>.omit({ ... })</code> drops some. If you change the title rule in <code>taskFields</code>, create and update both change, with nothing to remember.</p>
+        <p><strong>The types.</strong> The last four lines are the point of this module. <code>z.infer&lt;typeof taskStatus&gt;</code> is <code>"todo" | "in_progress" | "done"</code>. <code>TaskInput</code> is what the create handler receives. Look at the last lines of <code>schemas-try.ts</code>: <code>z.input</code> of the create schema allows <code>{ title: "no status yet" }</code>, and <code>z.output</code> has a <code>status</code>, because the default was applied. <strong>Schemas first, types derived</strong>: you never write <code>interface CreateTaskInput</code> again.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 5</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c5-9"><label for="c5-9"><code>npm run typecheck</code> is clean, and the practice file printed what is shown above.</label></li>
+            <li><input type="checkbox" id="c5-10"><label for="c5-10">You can say what <code>.partial</code>, <code>.extend</code> and <code>.default</code> did to create the update and create schemas.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s6">
+        <h2><span class="num">6.</span>The validate middleware, and removing the old validation <span class="time">45 min</span></h2>
+        <p>A <strong>middleware</strong> runs before the handler (M05). The idea: for each route, say which schemas apply to the body, the params and the query, check them, and hand the handler <strong>parsed</strong> values. Before you build it, try the obvious way to store a parsed query, and see why it does not work in Express 5. Create <code>src/labs/query-readonly.ts</code>:</p>
+        <pre><code>import express from "express";
+import { z } from "zod";
+
+const querySchema = z.object({ page: z.coerce.number().default(1) });
+
+const app = express();
+app.get("/try", (req, res) =&gt; {
+  try {
+    // The obvious idea: replace req.query with the parsed value
+    req.query = querySchema.parse(req.query) as never;
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ message: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+const server = app.listen(4100, async () =&gt; {
+  const response = await fetch("http://localhost:4100/try?page=2");
+  console.log(response.status, await response.json());
+  server.close();
+});</code></pre>
+        <pre><code>npx tsx src/labs/query-readonly.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>500 {
+  message: 'Cannot set property query of #&lt;IncomingMessage&gt; which has only a getter'
+}</code></pre>
+        </div>
+        <p>In Express 5, <code>req.query</code> is a read-only getter: it re-reads the URL each time, and you cannot assign to it. So the middleware stores the parsed values somewhere Express lets you write: <strong><code>res.locals</code></strong>, an object that lives as long as the request. Delete the practice file, then create <code>src/middleware/validate.ts</code>:</p>
+        <pre><code>rm src/labs/query-readonly.ts</code></pre>
+        <pre><code>import type { RequestHandler, Response } from "express";
+import type { z } from "zod";
+
+// Which parts of the request to check. Each one is optional.
+interface RequestSchemas {
+  body?: z.ZodType;
+  params?: z.ZodType;
+  query?: z.ZodType;
+}
+
+// For each part you gave a schema for, the type of the parsed result (z.output)
+export type Valid&lt;S extends RequestSchemas&gt; = {
+  [K in keyof S &amp; keyof RequestSchemas]: S[K] extends z.ZodType ? z.output&lt;S[K]&gt; : never;
+};
+
+// Parse the request. A ZodError is thrown on bad input: Express 5 passes it to the central error handler.
+// The parsed values go on res.locals.valid, because Express 5 makes the query object read-only.
+export function validate(schemas: RequestSchemas): RequestHandler {
+  return (req, res, next) =&gt; {
+    const valid: Record&lt;string, unknown&gt; = {};
+    if (schemas.params) valid.params = schemas.params.parse(req.params);
+    if (schemas.query) valid.query = schemas.query.parse(req.query);
+    if (schemas.body) valid.body = schemas.body.parse(req.body);
+    res.locals.valid = valid;
+    next();
+  };
+}
+
+// Read the parsed values back, typed by the same schemas you gave validate()
+export function valid&lt;S extends RequestSchemas&gt;(res: Response): Valid&lt;S&gt; {
+  return res.locals.valid as Valid&lt;S&gt;;
+}</code></pre>
+        <p>How it works:</p>
+        <ul>
+          <li><code>validate(schemas)</code> returns an ordinary middleware. It calls <code>parse</code> on each part you gave a schema for. If one fails it <strong>throws</strong> a <code>ZodError</code>, and Express 5 passes a thrown error to the central handler (M05), so there is no <code>try/catch</code> here. If all pass, the parsed values go on <code>res.locals.valid</code> and <code>next()</code> runs the handler.</li>
+          <li>The <code>Valid&lt;S&gt;</code> type reads the schemas you gave and gives each part the <code>z.output</code> type of its schema. <code>valid&lt;typeof schemas&gt;(res)</code> gives the handler those values with the right types. The type comes from the schema, not from anything you wrote by hand.</li>
+          <li>The params are checked first, then the query, then the body: the first part that fails is reported. This keeps the middleware short.</li>
+        </ul>
+        <p>Now replace <code>src/routes/tasks.ts</code>. Each route declares what it accepts in one object, and the handlers shrink to the business call. Nothing in this file checks anything by hand:</p>
+        <pre><code>import { Router } from "express";
+import type { Response } from "express";
+import { valid, validate } from "../middleware/validate.ts";
+import { createTaskSchema, listQuerySchema, taskParamsSchema, updateTaskSchema } from "../schemas/task.ts";
+import * as tasks from "../services/tasks.ts";
+import type { ListResult, TaskView } from "../services/tasks.ts";
+
+export const tasksRouter = Router();
+
+// One object per route says what that route accepts. validate() checks it, valid() reads it, typed.
+const listRequest = { query: listQuerySchema };
+const createRequest = { body: createTaskSchema };
+const idRequest = { params: taskParamsSchema };
+const updateRequest = { params: taskParamsSchema, body: updateTaskSchema };
+
+tasksRouter.get("/", validate(listRequest), async (_req, res: Response&lt;ListResult&gt;) =&gt; {
+  const { query } = valid&lt;typeof listRequest&gt;(res);
+  res.json(await tasks.listTasks(query));
+});
+
+tasksRouter.post("/", validate(createRequest), async (_req, res: Response&lt;TaskView&gt;) =&gt; {
+  const { body } = valid&lt;typeof createRequest&gt;(res);
+  res.status(201).json(await tasks.createTask(body));
+});
+
+tasksRouter.get("/:id", validate(idRequest), async (_req, res: Response&lt;TaskView&gt;) =&gt; {
+  const { params } = valid&lt;typeof idRequest&gt;(res);
+  res.json(await tasks.getTask(params.id));
+});
+
+tasksRouter.patch("/:id", validate(updateRequest), async (_req, res: Response&lt;TaskView&gt;) =&gt; {
+  const { params, body } = valid&lt;typeof updateRequest&gt;(res);
+  res.json(await tasks.updateTask(params.id, body));
+});
+
+tasksRouter.delete("/:id", validate(idRequest), async (_req, res) =&gt; {
+  const { params } = valid&lt;typeof idRequest&gt;(res);
+  await tasks.deleteTask(params.id);
+  res.sendStatus(204);
+});</code></pre>
+        <p>The service still has its own hand-written <code>TaskInput</code>, <code>TaskChanges</code> and <code>ListQuery</code>. Open <code>src/services/tasks.ts</code> and <strong>replace everything from the top of the file down to and including the <code>ListResult</code> interface</strong> with the lines below. The service now takes its types from the schemas. (<code>TaskView</code> stays for now. You replace it in section 7.)</p>
+        <pre><code>import type { Task } from "../domain/task.ts";
+import { prisma } from "../db.ts";
+import type { Prisma } from "../generated/prisma/client.ts";
+import type { ListQuery, TaskChanges, TaskInput } from "../schemas/task.ts";
+
+export type TaskView = Task &amp; { tags: string[] };
+
+export interface ListResult {
+  data: TaskView[];
+  meta: { page: number; pageSize: number; total: number; totalPages: number };
+}</code></pre>
+        <p>Now the old file is dead code. <strong>Delete it</strong>, and check the code:</p>
+        <pre><code>rm src/validation.ts
+npm run typecheck</code></pre>
+        <p><code>npm run typecheck</code> should print no errors. If it complains about <code>validation.ts</code>, something still imports it: search with <code>grep -rn "validation.ts" src</code>.</p>
+        <p>Start the server (<code>npm run dev</code>) and, in a second terminal, send a bad create request. The handler for it does not exist yet, so you will see what a <code>ZodError</code> does without help:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{"title":""}'</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"error":{"code":"INTERNAL_ERROR","message":"Internal server error","requestId":"213ea13c-4ffb-4cc1-bec0-573dfd50e082"}}
+HTTP 500</code></pre>
+          <p>Your <code>requestId</code> is your own. The invalid data <strong>was</strong> stopped: it never reached Prisma. But the central handler from M05 does not know a <code>ZodError</code>, so it treats it as a bug: <code>500</code>, and the real error in your server terminal. A client's mistake must be a <code>400</code>.</p>
+        </div>
+        <p>Add the missing piece to the central handler. <strong>Replace</strong> <code>src/middleware/errors.ts</code>. <code>fromZodError</code> returns the same <code>ValidationError</code> you wrote in M05, so the envelope cannot change: it only needs one <code>{ path, message }</code> per issue.</p>
+        <pre><code>import type { ErrorRequestHandler, RequestHandler } from "express";
+import { ZodError } from "zod";
+import { AppError, ConflictError, NotFoundError, ValidationError } from "../errors.ts";
+import { Prisma } from "../generated/prisma/client.ts";
+
+// Runs only when no route matched
+export const notFound: RequestHandler = (req, _res, next) =&gt; {
+  next(new NotFoundError(`Route ${req.method} ${req.originalUrl} not found`));
+};
+
+// Turn the Prisma error codes we expect into the same AppError classes as before
+function fromPrismaError(error: Prisma.PrismaClientKnownRequestError): AppError | undefined {
+  switch (error.code) {
+    case "P2002": // a unique constraint failed
+      return new ConflictError("A record with this value already exists");
+    case "P2025": // the record to read, change or delete was not found
+      return new NotFoundError("The requested record was not found");
+    case "P2003": // a foreign key points at nothing
+      return new ConflictError("This record refers to another record that does not exist");
+    default:
+      return undefined;
+  }
+}
+
+// Turn a ZodError into the same ValidationError as before: one { path, message } per problem
+function fromZodError(error: ZodError): ValidationError {
+  return new ValidationError(
+    error.issues.map((issue) =&gt; ({ path: issue.path.map(String).join(".") || "body", message: issue.message })),
+  );
+}
+
+// express.json() reports a body that is not valid JSON with this shape
+function isBodyParseError(error: unknown): boolean {
+  return typeof error === "object" &amp;&amp; error !== null &amp;&amp; "type" in error &amp;&amp; error.type === "entity.parse.failed";
+}
+
+// Four arguments: this is how Express knows it is the error handler
+export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, next) =&gt; {
+  if (res.headersSent) return next(error);
+
+  let status = 500;
+  let code = "INTERNAL_ERROR";
+  let message = "Internal server error"; // never leak the real message of a bug
+  let details;
+
+  const appError =
+    error instanceof AppError
+      ? error
+      : error instanceof ZodError
+        ? fromZodError(error)
+        : error instanceof Prisma.PrismaClientKnownRequestError
+          ? fromPrismaError(error)
+          : undefined;
+
+  if (appError) {
+    ({ status, code, message, details } = appError);
+  } else if (isBodyParseError(error)) {
+    status = 400;
+    code = "BAD_REQUEST";
+    message = "Request body is not valid JSON";
+  } else {
+    console.error(error); // a programmer error: log it, do not send it
+  }
+
+  res.status(status).json({
+    error: {
+      code,
+      message,
+      ...(details ? { details } : {}),
+      requestId: res.locals.requestId,
+    },
+  });
+};</code></pre>
+        <ul>
+          <li><code>issue.path</code> is an array such as <code>["tags", 1]</code>, so <code>.map(String).join(".")</code> makes the text <code>tags.1</code>. An empty path (the whole body is wrong) becomes <code>"body"</code>, as in M05.</li>
+          <li>The new branch sits next to the <code>AppError</code> and Prisma ones, so every error still ends in one <code>res.status(...).json({ error: ... })</code> at the bottom.</li>
+        </ul>
+        <p>Save. The server restarts by itself. Try the failures from the last two modules, and a valid request:</p>
+        <pre><code>curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{"title":"","status":"archived","owner":"me"}'
+curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks
+curl -s -w "\nHTTP %{http_code}\n" localhost:4000/api/v1/tasks/abc
+curl -s -w "\nHTTP %{http_code}\n" "localhost:4000/api/v1/tasks?page=0&amp;pageSize=abc&amp;sort=name"
+curl -s -w "\nHTTP %{http_code}\n" -X PATCH localhost:4000/api/v1/tasks/00000000-0000-4000-8000-000000000000 -H "Content-Type: application/json" -d '{}'
+curl -s -w "\nHTTP %{http_code}\n" -X POST localhost:4000/api/v1/tasks -H "Content-Type: application/json" -d '{"title":"  Write the Zod page  ","tags":["zod","zod"," api "]}'</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":[{"path":"title","message":"Must not be empty"},{"path":"status","message":"Must be one of: todo, in_progress, done"},{"path":"body","message":"Unrecognized key: \"owner\""}],"requestId":"331e0251-9468-4cab-ac54-0700ab2f96ac"}}
+HTTP 400
+{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":[{"path":"body","message":"Invalid input: expected object, received undefined"}],"requestId":"2d8aa0d0-2330-4420-8689-b381a5176822"}}
+HTTP 400
+{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":[{"path":"id","message":"Must be a valid id"}],"requestId":"4853beb0-e925-4b74-801f-d38a4ee6278d"}}
+HTTP 400
+{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":[{"path":"sort","message":"Must be one of: createdAt, title, status"},{"path":"page","message":"Must be a whole number from 1 to 1000000"},{"path":"pageSize","message":"Must be a whole number from 1 to 100"}],"requestId":"451f7846-a865-4c8b-9cea-3b90bde27003"}}
+HTTP 400
+{"error":{"code":"VALIDATION_ERROR","message":"Request validation failed","details":[{"path":"body","message":"Send at least one of: title, description, status, tags"}],"requestId":"9a52ccac-7064-4cc0-91ed-008c94154879"}}
+HTTP 400
+{"id":"5c0fdaa1-36ef-44be-a515-00a8da9985b2","title":"Write the Zod page","status":"todo","createdAt":"2026-10-13T01:29:25.634Z","updatedAt":"2026-10-13T01:29:25.634Z","tags":["api","zod"]}
+HTTP 201</code></pre>
+          <p>Your <code>requestId</code>, <code>id</code> and timestamps are your own. Each <code>400</code> has the M05 shape: <code>code</code>, <code>message</code>, <code>details</code> and <code>requestId</code>. The first one reports <strong>all three</strong> problems at once: the empty title, the bad status, and the unknown field <code>owner</code> (path <code>body</code>, because an unknown key belongs to the whole object). The second has no body at all, so <code>req.body</code> is <code>undefined</code>. The last one shows the cleaning: the title is trimmed and the tags are <code>["api","zod"]</code> (no repeat, trimmed, sorted by <code>toView</code>). Send the last request a second time and you get <code>409</code>: the title rule from M07 lives in the database.</p>
+        </div>
+        <p>Now run the Bruno collection from M05, which must pass without a single change:</p>
+        <pre><code>npm run bruno</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>📊 Execution Summary
+┌───────────────┬────────────────┐
+│ Metric        │     Result     │
+├───────────────┼────────────────┤
+│ Status        │     ✓ PASS     │
+├───────────────┼────────────────┤
+│ Requests      │ 15 (15 Passed) │
+├───────────────┼────────────────┤
+│ Tests         │      1/1       │
+├───────────────┼────────────────┤
+│ Assertions    │     35/35      │
+├───────────────┼────────────────┤
+│ Duration (ms) │      454       │
+└───────────────┴────────────────┘</code></pre>
+          <p>All 15 requests and 35 assertions pass: the same envelope, the same status codes, the same <code>details[0].path</code> of <code>title</code>. Only the duration is your own.</p>
+        </div>
+        <p>Last, the proof the brief asks for: no hand-written checks remain. Search the code (the practice files in <code>src/labs/</code> are exercises from earlier modules, not request handling):</p>
+        <pre><code>grep -rnE "typeof (req|body|data|query|input)|if \(!(req\.)?body|isInteger|\.trim\(\) ?===" src prisma --include=*.ts --exclude-dir=generated --exclude-dir=labs
+echo "matches: $?"</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>matches: 1</code></pre>
+          <p><code>grep</code> exits with <code>1</code> when it finds nothing, so <code>matches: 1</code> means no hand-written check is left. (On Windows Git Bash, macOS and Linux this works the same.)</p>
+        </div>
+        <pre><code>git add .
+git commit -m "feat: validate requests with zod schemas and a validate middleware"
+git push</code></pre>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 6</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c6-11"><label for="c6-11"><code>src/validation.ts</code> is gone and <code>npm run typecheck</code> is clean.</label></li>
+            <li><input type="checkbox" id="c6-12"><label for="c6-12">Bad input gives a <code>400</code> with a <code>details</code> entry for every problem, in the M05 envelope.</label></li>
+            <li><input type="checkbox" id="c6-13"><label for="c6-13"><code>npm run bruno</code> passes with 15 requests and 35 assertions, unchanged.</label></li>
+            <li><input type="checkbox" id="c6-14"><label for="c6-14">The <code>grep</code> finds nothing.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s7">
+        <h2><span class="num">7.</span>Zod and Prisma, and checking the environment <span class="time">35 min</span></h2>
+        <p><strong>Two contracts.</strong> Zod describes what a <strong>client</strong> may send: the request contract. Prisma's types describe what the <strong>database</strong> can store: the persistence contract. They are different on purpose (a client never sends <code>titleKey</code>), but they must agree where they meet. Two rules keep them honest:</p>
+        <ol>
+          <li><strong>Never pass raw <code>req.body</code> to Prisma.</strong> Only the parsed, derived values go through. Check that nothing in <code>src</code> touches the raw request except the middleware:</li>
+        </ol>
+        <pre><code>grep -rn "req\.body\|req\.query\|req\.params" src --include=*.ts --exclude-dir=generated --exclude-dir=labs</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>src/middleware/validate.ts:21:    if (schemas.params) valid.params = schemas.params.parse(req.params);
+src/middleware/validate.ts:22:    if (schemas.query) valid.query = schemas.query.parse(req.query);
+src/middleware/validate.ts:23:    if (schemas.body) valid.body = schemas.body.parse(req.body);</code></pre>
+        </div>
+        <ol>
+          <li><strong>Let the compiler compare them.</strong> <code>satisfies Prisma.TaskCreateInput</code> checks an object against Prisma's own type. The same idea works for <strong>responses</strong>: parse the database row through a Zod schema, and only the fields in the schema are left, so an internal column can never leak by accident. Add the response schema to the bottom of <code>src/schemas/task.ts</code>:</li>
+        </ol>
+        <pre><code>// What the API sends back. A database row parsed through this keeps these fields and drops the rest.
+export const taskViewSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable().transform((text) =&gt; text ?? undefined),
+  status: taskStatus,
+  tags: z.array(z.object({ name: z.string() })).transform((tags) =&gt; tags.map((tag) =&gt; tag.name).sort()),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+export type TaskView = z.output&lt;typeof taskViewSchema&gt;;</code></pre>
+        <p>Now use both in the service. <strong>Replace everything from the top of <code>src/services/tasks.ts</code> down to and including <code>toView</code></strong> (the old <code>toView</code> function, which built the object by hand) with:</p>
+        <pre><code>import { prisma } from "../db.ts";
+import type { Prisma } from "../generated/prisma/client.ts";
+import { taskViewSchema } from "../schemas/task.ts";
+import type { ListQuery, TaskChanges, TaskInput, TaskView } from "../schemas/task.ts";
+
+export interface ListResult {
+  data: TaskView[];
+  meta: { page: number; pageSize: number; total: number; totalPages: number };
+}
+
+// The fields we send back. `satisfies` checks it against Prisma's own type, and keeps the exact shape.
+const taskSelect = {
+  id: true,
+  title: true,
+  description: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+  tags: { select: { name: true } },
+} satisfies Prisma.TaskSelect;
+
+// A database row goes through taskViewSchema: it keeps the public fields, makes the tags a list of names, and drops the rest
+const toView = (row: unknown): TaskView =&gt; taskViewSchema.parse(row);</code></pre>
+        <p>And <strong>replace the <code>createTask</code> function</strong> with a version that builds the Prisma input explicitly and checks it with <code>satisfies</code>:</p>
+        <pre><code>export async function createTask(input: TaskInput): Promise&lt;TaskView&gt; {
+  const { tags = [], ...fields } = input;
+  // `satisfies` checks this object against Prisma's own type. If Zod and Prisma drift apart, tsc says so.
+  const data = {
+    title: fields.title,
+    description: fields.description,
+    status: fields.status,
+    // titleKey is the lower-case title. It is unique, so "Write docs" and "write DOCS" clash (P2002).
+    titleKey: fields.title.toLowerCase(),
+    tags: { connectOrCreate: tagLinks(tags) },
+  } satisfies Prisma.TaskCreateInput;
+  const row = await prisma.task.create({ data, select: taskSelect });
+  return toView(row);
+}</code></pre>
+        <p><code>TaskView</code> now comes from the schema too, so in <code>src/routes/tasks.ts</code> import it from there: replace the line <code>import type { ListResult, TaskView } from "../services/tasks.ts";</code> with these two lines:</p>
+        <pre><code>import type { ListResult } from "../services/tasks.ts";
+import type { TaskView } from "../schemas/task.ts";</code></pre>
+        <p>See the difference between a row and a view. Create <code>src/labs/strip-demo.ts</code>:</p>
+        <pre><code>import { prisma } from "../db.ts";
+import { taskViewSchema } from "../schemas/task.ts";
+
+// Ask Prisma for everything, including the internal columns
+const row = await prisma.task.findFirstOrThrow({ include: { tags: true } });
+console.log("row keys :", Object.keys(row).join(", "));
+
+// Parse it through the response schema: only the public fields are left
+const view = taskViewSchema.parse(row);
+console.log("view keys:", Object.keys(view).join(", "));
+
+await prisma.$disconnect();</code></pre>
+        <pre><code>npx tsx --env-file-if-exists=.env src/labs/strip-demo.ts</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>row keys : id, title, titleKey, description, status, userId, createdAt, updatedAt, tags
+view keys: id, title, description, status, tags, createdAt, updatedAt</code></pre>
+          <p><code>titleKey</code> and <code>userId</code> are in the row and not in the view. Zod objects drop unknown keys, so the response schema is also a list of what you are allowed to say.</p>
+        </div>
+        <p><strong>Make them drift on purpose.</strong> In <code>src/schemas/task.ts</code>, add <code>"blocked"</code> to the <code>taskStatus</code> list, so Zod accepts a status that the database enum does not have, and run:</p>
+        <pre><code>npm run typecheck</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>src/services/tasks.ts(...): error TS2322: Type '"blocked" | "done" | "in_progress" | "todo"' is not assignable to type 'TaskStatus | undefined'.
+  Type '"blocked"' is not assignable to type 'TaskStatus | undefined'.</code></pre>
+          <p>There are a few errors, all in <code>src/services/tasks.ts</code>, and your line numbers differ. This is the one to look for. Without the check, a client sending <code>"blocked"</code> would get past Zod and fail inside Prisma at run time. Now it fails at compile time. Remove <code>"blocked"</code> again and make sure <code>npm run typecheck</code> is clean.</p>
+        </div>
+        <p><strong>Validate the environment.</strong> <code>process.env</code> is untrusted too: a typo in <code>.env</code> should stop the app at the start, not fail on the first request. Create <code>src/config.ts</code>:</p>
+        <pre><code>import { z } from "zod";
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  DATABASE_URL: z.string().startsWith("file:", "Must start with file: (this course uses SQLite)").default("file:./data/app.db"),
+});
+
+// Check the environment once, when the app starts. If it is wrong, say why and stop.
+const result = envSchema.safeParse(process.env);
+if (!result.success) {
+  console.error(`Invalid environment:\n${z.prettifyError(result.error)}`);
+  process.exit(1);
+}
+
+export const config = result.data;</code></pre>
+        <p>It checks <code>process.env</code> once, when the file is first imported, and <code>process.exit(1)</code> with a readable message if something is wrong. The values it returns have the right types: <code>config.PORT</code> is a number, because <code>z.coerce.number()</code> did the conversion. Use it in <code>src/db.ts</code> and <code>src/server.ts</code>. <strong>Replace</strong> both files:</p>
+        <pre><code>import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { config } from "./config.ts";
+import { PrismaClient } from "./generated/prisma/client.ts";
+
+// One client for the whole app. PrismaClient needs a driver adapter: here, better-sqlite3.
+const adapter = new PrismaBetterSqlite3({
+  url: config.DATABASE_URL,
+});
+
+export const prisma = new PrismaClient({ adapter });</code></pre>
+        <pre><code>import { app } from "./app.ts";
+import { config } from "./config.ts";
+import { prisma } from "./db.ts";
+
+const server = app.listen(config.PORT, () =&gt; {
+  console.log(`Task API listening on http://localhost:${config.PORT}`);
+});
+
+// Stop cleanly: finish the requests in progress, then exit
+function shutdown(signal: string): void {
+  console.log(`${signal} received, closing`);
+  // close the server first, then the database connection
+  server.close(() =&gt; {
+    void prisma.$disconnect().then(() =&gt; process.exit(0));
+  });
+  // If a connection will not close, give up after 10 seconds
+  setTimeout(() =&gt; process.exit(1), 10_000).unref();
+}
+
+process.on("SIGTERM", () =&gt; shutdown("SIGTERM"));
+process.on("SIGINT", () =&gt; shutdown("SIGINT"));</code></pre>
+        <p>Check it works, and then break it. A variable you set in front of a command wins over <code>.env</code>:</p>
+        <pre><code>npm run typecheck
+PORT=abc DATABASE_URL=postgres://x npx tsx --env-file-if-exists=.env src/server.ts
+echo "exit: $?"</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Invalid environment:
+✖ Invalid input: expected number, received NaN
+  → at PORT
+✖ Must start with file: (this course uses SQLite)
+  → at DATABASE_URL
+exit: 1</code></pre>
+          <p>Before this change, <code>PORT=abc</code> would have started the server on port <code>NaN</code>, and a wrong <code>DATABASE_URL</code> would have failed later, inside Prisma. Now the app refuses to start and tells you what to fix. (In Windows PowerShell or cmd, a variable in front of a command does not work: use Git Bash, as in M07.)</p>
+        </div>
+        <p>Run the whole check once more, then commit:</p>
+        <pre><code>npm run typecheck
+npm run bruno
+git add .
+git commit -m "feat: parse responses and the environment with zod"
+git push</code></pre>
+        <div class="callout note">
+          <p class="callout-title">Two things to know, not to use</p>
+          <p><strong>Zod Mini</strong> (<code>import * as z from "zod/mini"</code>) is a smaller version of the same library with a function-style API, made for front-end bundles where size matters. <strong><code>z.toJSONSchema(schema)</code></strong> turns a schema into JSON Schema, the format that tools such as OpenAPI use. You do not need either in this course.</p>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 7</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c7-15"><label for="c7-15">The service builds the Prisma input from parsed values, with <code>satisfies Prisma.TaskCreateInput</code>, and rows go through <code>taskViewSchema</code>.</label></li>
+            <li><input type="checkbox" id="c7-16"><label for="c7-16">Adding <code>"blocked"</code> to the Zod status made <code>npm run typecheck</code> fail, and removing it fixed it.</label></li>
+            <li><input type="checkbox" id="c7-17"><label for="c7-17">A bad <code>PORT</code> or <code>DATABASE_URL</code> stops the app at startup with a readable message.</label></li>
+            <li><input type="checkbox" id="c7-18"><label for="c7-18"><code>npm run typecheck</code> and <code>npm run bruno</code> both pass.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="check">
+        <h2>Check your understanding <span class="time">10 min</span></h2>
+        <p>Answer each one in your head, then open it to compare.</p>
+        <details>
+          <summary>Why does TypeScript not protect <code>req.body</code>, and what does Zod add?</summary>
+          <p>TypeScript types are removed when the code runs, and <code>req.body</code> is data that arrives from outside while it runs. <code>req.body as CreateTaskInput</code> only tells the compiler to believe you. A Zod schema checks the real data at run time, and gives you a value whose type is true because it was checked.</p>
+        </details>
+        <details>
+          <summary>When would you use <code>parse</code>, and when <code>safeParse</code>?</summary>
+          <p><code>parse</code> throws a <code>ZodError</code> when the data is bad. Use it when bad data should stop the work and the error can travel to a central handler, as in the <code>validate</code> middleware. <code>safeParse</code> returns <code>{ success, data }</code> or <code>{ success, error }</code> and never throws. Use it when you want to handle the bad case on the spot, as in <code>config.ts</code>, where you print a message and exit.</p>
+        </details>
+        <details>
+          <summary>Why does the middleware store parsed values on <code>res.locals</code> and not on <code>req.query</code>?</summary>
+          <p>In Express 5 <code>req.query</code> is a read-only getter, so assigning to it throws a <code>TypeError</code>. <code>res.locals</code> is meant for per-request values and can be written. One place for body, params and query keeps the handlers simple.</p>
+        </details>
+        <details>
+          <summary>What are <code>z.input</code> and <code>z.output</code>? Use <code>z.coerce.number()</code> as the example.</summary>
+          <p><code>z.input</code> is the type the schema accepts, and <code>z.output</code> (the same as <code>z.infer</code>) is the type it returns. For <code>z.coerce.number()</code> the input is anything (a query string value is text) and the output is a <code>number</code>. For <code>createTaskSchema</code>, <code>status</code> is optional in the input and always present in the output, because of <code>.default("todo")</code>.</p>
+        </details>
+        <details>
+          <summary>Why is <code>updateTaskSchema</code> made with <code>.partial()</code>, and why does it need a <code>refine</code>?</summary>
+          <p><code>.partial()</code> makes every field of <code>taskFields</code> optional, so a PATCH may change only one field, and the title rules are not written twice. It also makes <code>{}</code> valid, and a PATCH that changes nothing is a mistake, so the <code>refine</code> adds back the one rule <code>.partial()</code> took away: at least one field must be sent.</p>
+        </details>
+        <details>
+          <summary>Zod is the request contract and Prisma is the persistence contract. What does that mean?</summary>
+          <p>Zod says what a client may send (no <code>titleKey</code>, no <code>id</code>, a trimmed title). Prisma's types say what the database can store. They are separate on purpose, and they must agree where they meet. <code>satisfies Prisma.TaskCreateInput</code> makes the compiler compare them, and a response schema parsed over each row makes sure only the public fields leave the API.</p>
+        </details>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <details>
+          <summary><code>TS2307: Cannot find module 'zod'</code>, or Zod functions that do not exist (<code>z.email is not a function</code>)</summary>
+            <p>Zod is not installed, or an old version is. Run <code>npm install zod@4</code> and check <code>npm ls zod</code> shows <code>4.x</code>. Snippets from older tutorials (<code>z.string().email()</code>, <code>error.format()</code>) are for Zod 3.</p>
+        </details>
+        <details>
+          <summary><code>Cannot set property query of #&lt;IncomingMessage&gt; which has only a getter</code></summary>
+            <p>Some code assigns to <code>req.query</code>. In Express 5 you cannot. Store the parsed value on <code>res.locals</code> as <code>validate</code> does, and read it with <code>valid&lt;typeof schemas&gt;(res)</code>.</p>
+        </details>
+        <details>
+          <summary>A bad request returns <code>500 INTERNAL_ERROR</code> instead of <code>400</code></summary>
+            <p>The central handler does not know <code>ZodError</code>. Check that <code>src/middleware/errors.ts</code> has the <code>error instanceof ZodError</code> branch and imports <code>ZodError</code> from <code>"zod"</code>. If it does, check that you have only one copy of Zod: <code>npm ls zod</code> should list one version.</p>
+        </details>
+        <details>
+          <summary><code>page</code> or <code>pageSize</code> is rejected, or becomes <code>0</code> or <code>NaN</code></summary>
+            <p>Query-string values are text, so they need <code>z.coerce.number()</code> (or the <code>whole</code> helper of section 5). An empty <code>?page=</code> becomes <code>0</code> and fails the <code>min(1)</code>: that is correct. If a valid number is rejected, check <code>max</code>: <code>pageSize</code> is at most <code>100</code>.</p>
+        </details>
+        <details>
+          <summary>A valid-looking request is rejected with <code>Unrecognized key</code></summary>
+            <p><code>z.strictObject</code> rejects fields the schema does not list, on purpose. Add the field to <code>taskFields</code> if the API should accept it, or stop sending it. Fields such as <code>id</code> and <code>createdAt</code> are never accepted.</p>
+        </details>
+        <details>
+          <summary><code>TS2322</code> errors in <code>src/services/tasks.ts</code> after you change a schema</summary>
+            <p>The compiler is telling you Zod and Prisma disagree (section 7). Make the Zod schema match the Prisma schema, or change the Prisma schema, run a migration (M07) and run <code>npx prisma@7 generate</code>.</p>
+        </details>
+        <details>
+          <summary>The app exits with <code>Invalid environment</code> on start</summary>
+            <p>That is <code>config.ts</code> working. Read the <code>→ at NAME</code> line, fix the value in <code>.env</code> (<code>PORT=4000</code>, <code>DATABASE_URL="file:./data/app.db"</code>), and start again. If you set the variable in your shell earlier, it wins over <code>.env</code>: close the terminal or unset it.</p>
+        </details>
+        <details>
+          <summary><code>PORT=abc npx ...</code> does nothing, or is a syntax error</summary>
+            <p>Setting a variable in front of a command works in Git Bash, macOS and Linux Terminal. It does not work in Windows PowerShell or cmd, so use Git Bash, as the rest of this course does.</p>
+        </details>
+      </section>
+
+      <section id="done">
+        <h2>You're done when</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="d19"><label for="d19"><code>zod</code> is installed at <code>^4</code>, and <code>src/schemas/task.ts</code> has the create, update, list query and params schemas.</label></li>
+          <li><input type="checkbox" id="d20"><label for="d20"><code>src/validation.ts</code> is gone, and the <code>grep</code> for hand-written checks finds nothing.</label></li>
+          <li><input type="checkbox" id="d21"><label for="d21">Every task route uses <code>validate(...)</code>, and the handlers read typed values from <code>valid&lt;typeof ...&gt;(res)</code>.</label></li>
+          <li><input type="checkbox" id="d22"><label for="d22">The service and the routes take <code>TaskInput</code>, <code>TaskChanges</code>, <code>ListQuery</code> and <code>TaskView</code> from the schemas, and <code>npm run typecheck</code> is clean.</label></li>
+          <li><input type="checkbox" id="d23"><label for="d23">Invalid input returns a <code>400</code> in the M05 envelope with a <code>details</code> entry for each problem, and never reaches Prisma.</label></li>
+          <li><input type="checkbox" id="d24"><label for="d24"><code>src/config.ts</code> checks the environment at startup and stops the app on a bad value.</label></li>
+          <li><input type="checkbox" id="d25"><label for="d25"><code>npm run bruno</code> passes with 15 requests and 35 assertions.</label></li>
+          <li><input type="checkbox" id="d26"><label for="d26">You can explain <code>z.infer</code> vs a hand-written type, and why Zod is the request contract and Prisma the persistence contract.</label></li>
+          <li><input type="checkbox" id="d27"><label for="d27">Everything is committed and pushed to your repo.</label></li>
+        </ul>
+        <p>Keep <code>src/schemas/</code>, <code>src/middleware/validate.ts</code> and <code>src/config.ts</code> as they are. M09 tests the <code>app</code> you export with Jest and Supertest, against its own database, and those tests send both valid and invalid requests to the routes you built here.</p>
+      </section>
+
+<nav class="pager" aria-label="Module navigation">
+        <a href="../m07-prisma-orm-migrations/index.html">&larr; M07, Prisma ORM &amp; Migrations</a>
+        <a href="../../index.html">All modules</a>
+        <span>Next: M09, Integration Testing with Jest + Supertest (coming soon).</span>
+      </nav>
+    </main>
+  </div>
+</body>
+</html>

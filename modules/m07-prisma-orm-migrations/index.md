@@ -1601,4 +1601,4 @@ Setting a variable in front of a command works in Git Bash, macOS and Linux Term
 
 Keep `prisma/`, `src/db.ts` and `src/services/tasks.ts` as they are. M08 replaces the hand-written validation with Zod, and M09 tests the `app` you export, against its own database.
 
-Previous: [M06, SQL Fundamentals with SQLite](../m06-sql-fundamentals-sqlite/index.md). Next: M08, Zod Validation & Type Inference (coming soon).
+Previous: [M06, SQL Fundamentals with SQLite](../m06-sql-fundamentals-sqlite/index.md). Next: [M08, Zod Validation & Type Inference](../m08-zod-validation/index.md).
