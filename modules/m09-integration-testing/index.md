@@ -1449,4 +1449,4 @@ Use Git Bash on Windows, as in the rest of the course. The Jest commands in this
 
 **Hand-off to M10.** Keep `tests/`, `jest.config.js`, `.env.test` and `.github/workflows/ci.yml` as they are. They are your template: the capstone is a new API, and you copy this test setup into it. M08 is the next lesson, and its Zod validation replaces the hand-written checks. Because your tests check each error's field `path` and not its wording, they should keep passing, and if one fails after M08, that failure is the tests doing their job.
 
-Previous: M08, Zod Validation & Type Inference (coming soon). Next: M10, Capstone Project (coming soon).
+Previous: [M08, Zod Validation & Type Inference](../m08-zod-validation/index.md). Next: M10, Capstone Project (coming soon).

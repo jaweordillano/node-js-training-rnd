@@ -1117,4 +1117,4 @@ Setting a variable in front of a command works in Git Bash, macOS and Linux Term
 
 Keep `src/schemas/`, `src/middleware/validate.ts` and `src/config.ts` as they are. M09 tests the `app` you export with Jest and Supertest, against its own database, and those tests send both valid and invalid requests to the routes you built here.
 
-Previous: [M07, Prisma ORM & Migrations](../m07-prisma-orm-migrations/index.md). Next: M09, Integration Testing with Jest + Supertest (coming soon).
+Previous: [M07, Prisma ORM & Migrations](../m07-prisma-orm-migrations/index.md). Next: [M09, Integration Testing with Jest + Supertest](../m09-integration-testing/index.md).
