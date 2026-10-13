@@ -1,0 +1,1257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M09 — Integration Testing with Jest + Supertest</title>
+  <meta name="description" content="Write integration tests for the Task API with Jest 30 and Supertest against a separate SQLite test database: error paths, list queries, middleware, a test-first endpoint, coverage, random order, and a GitHub Actions workflow, in your node-js-training project.">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <a class="back" href="../../index.html">&larr; All modules</a>
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#overview">Overview &amp; time plan</a></li>
+        <li><a href="#s1">1. Testing strategy and the Jest vocabulary</a></li>
+        <li><a href="#s2">2. Set up Jest, @swc/jest and a first test</a></li>
+        <li><a href="#s3">3. The test database</a></li>
+        <li><a href="#s4">4. Supertest and the happy paths</a></li>
+        <li><a href="#s5">5. Error paths, list queries and middleware</a></li>
+        <li><a href="#s6">6. Test-first: PATCH /tasks/:id/complete</a></li>
+        <li><a href="#s7">7. Coverage, random order and flaky tests</a></li>
+        <li><a href="#s8">8. CI: GitHub Actions and the badge</a></li>
+        <li><a href="#check">Check your understanding</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#done">You're done when</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Module M09 · Week 4 · Days 1-2 · about 5 hours</p>
+        <h1>Integration Testing with Jest + Supertest</h1>
+        <p class="lede">Prove the Task API works the way you think it does: write integration tests that send real requests to your Express app and check a real SQLite database, add one endpoint test-first, and have GitHub run all of it on every pull request.</p>
+      </header>
+
+      <section id="overview">
+        <h2>Overview &amp; time plan</h2>
+        <p><strong>Builds on:</strong> M05 and M07. You need the <code>node-js-training</code> repo with the Task API (an exported Express <code>app</code> in <code>src/app.ts</code>, your error handler from M05, and the Prisma database and service layer from M07), TypeScript set up with <code>npm run typecheck</code> clean, and Node.js 24. Everything you write here goes into that same repo, with the add, commit and push steps you know, plus the branch and pull request from M01 in section 8. (The word "module" on this page means the course lessons, M01 to M10.)</p>
+        <p>Today you check the Task API by hand with <code>npm run bruno</code>. That is slow, and it only covers the cases you remember. An <strong>integration test</strong> sends a real request into the real app and checks both the answer and the real database. You write each one once, and from then on a computer runs them all in about a second. When a later change breaks something, a test tells you at once, with the name of the broken promise.</p>
+        <p>You will:</p>
+        <ul>
+          <li>set up <strong>Jest 30</strong> and <strong>Supertest</strong> for a TypeScript and ES modules project, using <strong><code>@swc/jest</code></strong> to strip the types;</li>
+          <li>give the tests their own <strong>SQLite database</strong>, built from your migrations and emptied before every test;</li>
+          <li>write about <strong>38 tests</strong>: the happy path of every endpoint, then <code>400</code>, <code>404</code>, <code>409</code>, malformed JSON, filtering, sorting, paging, and your middleware;</li>
+          <li>add <code>PATCH /tasks/:id/complete</code> <strong>test-first</strong>: red, green, refactor;</li>
+          <li>measure <strong>coverage</strong>, run the suite in <strong>random order</strong>, and learn what makes tests flaky;</li>
+          <li>run it all on <strong>GitHub Actions</strong>, and put a status badge on your README.</li>
+        </ul>
+        <p>This is Task API v4. M05 to M07 built the API, and this module proves it works. Your validation is still the hand-written code from M05, and the tests check the answers it gives (a <code>400</code> with <code>details</code>), not how it works inside. Your M10 capstone will reuse this test setup, so keep it tidy.</p>
+        <p>Time plan:</p>
+        <ol class="plan">
+          <li><a href="#s1">Testing strategy and the Jest vocabulary</a> <span class="time">30 min</span></li>
+          <li><a href="#s2">Set up Jest, @swc/jest and a first test</a> <span class="time">40 min</span></li>
+          <li><a href="#s3">The test database</a> <span class="time">45 min</span></li>
+          <li><a href="#s4">Supertest and the happy paths</a> <span class="time">50 min</span></li>
+          <li><a href="#s5">Error paths, list queries and middleware</a> <span class="time">55 min</span></li>
+          <li><a href="#s6">Test-first: PATCH /tasks/:id/complete</a> <span class="time">25 min</span></li>
+          <li><a href="#s7">Coverage, random order and flaky tests</a> <span class="time">25 min</span></li>
+          <li><a href="#s8">CI: GitHub Actions and the badge</a> <span class="time">25 min</span></li>
+          <li><a href="#check">Check your understanding</a> <span class="time">5 min</span></li>
+        </ol>
+        <div class="callout tip">
+          <p class="callout-title">How this page uses your time</p>
+          <p>The page gives you the test code to type or paste, with the reason for each part. You still run every step and read every result. If you want more practice, write one extra test of your own at the end of each section before you read on.</p>
+        </div>
+        <p>Type the first test of each kind and the setup files in sections 2 and 3. You may paste the longer test files in sections 4 and 5. Run each step, and compare with the <em>You should see</em> box. Your process numbers, timings, ids and migration dates will differ. Commands are written for Git Bash on Windows, and macOS and Linux Terminal. If anything else differs, check <a href="#troubleshooting">Troubleshooting</a>.</p>
+      </section>
+
+      <section id="s1">
+        <h2><span class="num">1.</span>Testing strategy and the Jest vocabulary <span class="time">30 min</span></h2>
+        <h3>1.1 Why tests, and which kind</h3>
+        <p>Right now you check the Task API by hand: you run <code>npm run bruno</code> or call it from a terminal and look at the answers. That works once. It does not tell you, next month, that a change to the list query quietly broke the <code>409</code> rule. An <strong>automated test</strong> is a small program that makes a request, checks the answer, and fails loudly if it is wrong. You run all of them in seconds, every time you change something, and on GitHub before a change is merged.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Kind</th><th>What it runs</th><th>Speed</th><th>What it catches</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Unit</strong></td><td>One function, with everything around it faked</td><td>Very fast</td><td>A wrong calculation or branch inside one function</td></tr>
+              <tr><td><strong>Integration</strong></td><td>Several real parts together: here the Express app, your middleware, the service layer and a real SQLite database</td><td>Fast (about a second for this whole suite)</td><td>Parts that do not fit together: a wrong status code, a missing header, a database rule you forgot</td></tr>
+              <tr><td><strong>End-to-end</strong></td><td>The whole product, usually through a browser, against a deployed copy</td><td>Slow and fragile</td><td>Things only a real user flow shows. This API has no front end, so you do not need it</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The <strong>testing pyramid</strong> says: write many fast tests and few slow ones. For an API, the best value is in the middle. Each test sends one real HTTP request into your app and checks the response and the data it left behind. That is what this module builds.</p>
+        <h3>1.2 Why a real database and not a mock</h3>
+        <p>A <strong>mock</strong> is a stand-in that pretends to be a real part. You could replace Prisma with a mock that returns a made-up task. The test would pass, and prove only that your code calls the mock the way you wrote it. It would not prove that the SQL works, that your migration created the table, or that the <code>titleKey</code> column really rejects a duplicate title. In M07 the <code>409</code> comes from a <strong>database rule</strong>. A mock database cannot break that rule, so a mock cannot test it.</p>
+        <p>SQLite makes a real database cheap: it is one file, with no server to start. So the tests here use a real <code>test.db</code> file, built by your real migrations. The only thing you will fake is a failure that is hard to cause on purpose (section 5).</p>
+        <h3>1.3 How a request reaches your tests</h3>
+        <p>Since M05 your code is split in two: <code>src/app.ts</code> builds and exports the Express app, and <code>src/server.ts</code> is the only file that calls <code>listen</code>. Supertest uses that split. <code>request(app)</code> takes the app itself, starts it on a throw-away port for the length of one call, and gives you the response. No server to start or stop, and no port that can already be in use.</p>
+        <h3>1.4 What to test in an API</h3>
+        <p>For each endpoint, ask the same four questions. The tests you write in sections 4 to 6 are exactly these:</p>
+        <ul>
+          <li><strong>Does it work?</strong> The happy path: the right status, body and data in the database.</li>
+          <li><strong>Does it refuse bad input?</strong> <code>400</code> with <code>details</code>, and nothing saved.</li>
+          <li><strong>What if it does not exist, or already does?</strong> <code>404</code> and <code>409</code>.</li>
+          <li><strong>Is the plumbing right?</strong> The <code>X-Request-Id</code> header, the unknown-route <code>404</code>, and an error handler that never leaks a stack trace.</li>
+        </ul>
+        <h3>1.5 The Jest vocabulary</h3>
+        <p><strong>Jest</strong> is the test runner: it finds your test files, runs them, and reports what failed. You will meet each of these in the next sections, so read this as a map, not something to memorise.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Piece</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>describe("name", () =&gt; {...})</code></td><td>Groups related tests under a heading</td></tr>
+              <tr><td><code>it("does something", () =&gt; {...})</code></td><td>One test. It passes if it finishes without a failed <code>expect</code>. (<code>test</code> is another name for <code>it</code>.)</td></tr>
+              <tr><td><code>expect(value).toBe(5)</code></td><td>An assertion: it fails the test if the value is not what you said</td></tr>
+              <tr><td><code>toBe</code> · <code>toEqual</code> · <code>toMatchObject</code> · <code>toContain</code> · <code>toHaveLength</code></td><td>Matchers. <code>toBe</code> is for one value, <code>toEqual</code> compares whole objects, <code>toMatchObject</code> checks that an object contains at least these fields</td></tr>
+              <tr><td><code>expect.any(String)</code> · <code>expect.objectContaining({...})</code></td><td>Placeholders for the parts you cannot know in advance (an id) or do not care about</td></tr>
+              <tr><td><code>async</code> tests and <code>await</code></td><td>A test can be an <code>async</code> function. Jest waits for it, so you can <code>await</code> a request</td></tr>
+              <tr><td><code>beforeEach</code> · <code>afterAll</code> (also <code>beforeAll</code>, <code>afterEach</code>)</td><td>Code that runs around your tests: before every test, or once after the last one</td></tr>
+              <tr><td><code>it.each([...])</code></td><td>Runs one test body against many inputs</td></tr>
+              <tr><td><code>rejects</code> · <code>toThrow</code></td><td>Check that a promise rejects, or a function throws</td></tr>
+              <tr><td><code>jest.fn()</code> · <code>jest.spyOn()</code></td><td>Fakes that record how they were called. Used only at boundaries (section 5)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Imports come from <code>@jest/globals</code> (<code>import { describe, expect, it } from "@jest/globals"</code>). With TypeScript and ES modules that gives you proper types, and no hidden global names. Every test follows <strong>Arrange, Act, Assert</strong>: set up the data, do the one thing, check the result. Keep a blank line between the three, and you can read any test at a glance.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 1</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c1-1"><label for="c1-1">You can say why this module tests against a real SQLite file and not a mock database.</label></li>
+            <li><input type="checkbox" id="c1-2"><label for="c1-2">You can say what <code>request(app)</code> needs from <code>src/app.ts</code>, and why <code>listen</code> lives in <code>server.ts</code>.</label></li>
+            <li><input type="checkbox" id="c1-3"><label for="c1-3">You can name the four questions to ask for each endpoint.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s2">
+        <h2><span class="num">2.</span>Set up Jest, @swc/jest and a first test <span class="time">40 min</span></h2>
+        <p>Work in your <code>node-js-training</code> repo, on <code>main</code>, as in M07. The tests live in a new <code>tests/</code> folder next to <code>src/</code>.</p>
+        <h3>2.1 Install</h3>
+        <pre><code>npm install -D jest@30 supertest@7 @swc/jest @swc/core @jest/globals@30 @types/supertest</code></pre>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Package</th><th>What it is</th></tr></thead>
+            <tbody>
+              <tr><td><code>jest</code></td><td>The test runner</td></tr>
+              <tr><td><code>supertest</code></td><td>Sends HTTP requests to your app and lets you assert on the answers</td></tr>
+              <tr><td><code>@swc/jest</code> and <code>@swc/core</code></td><td>The <strong>transform</strong>. Jest only reads JavaScript, so something must turn your <code>.ts</code> files into JavaScript first. SWC is a very fast compiler that just removes the types</td></tr>
+              <tr><td><code>@jest/globals</code></td><td>The typed <code>describe</code>, <code>it</code>, <code>expect</code> and <code>jest</code> you import</td></tr>
+              <tr><td><code>@types/supertest</code></td><td>TypeScript types for Supertest</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Just as in M07, npm may print <code>install-scripts</code> warnings for <code>@swc/core</code> and others. They work anyway.</p>
+        <div class="callout note">
+          <p class="callout-title">Types are checked somewhere else</p>
+          <p>SWC does not check types. It only strips them, the same as <code>tsx</code> does. The check is still <code>npm run typecheck</code>, and you will make it cover your tests in step 2.5. The CI workflow in section 8 runs it too.</p>
+        </div>
+        <h3>2.2 Configure Jest</h3>
+        <p>Your project is ES modules (<code>"type": "module"</code> since M01) with TypeScript files, so Jest needs to be told three things: which files are tests, how to turn <code>.ts</code> into JavaScript, and that <code>.ts</code> files are ES modules. Create <code>jest.config.js</code> in the repo root:</p>
+        <pre><code>/** @type {import('jest').Config} */
+export default {
+  testEnvironment: "node",
+  roots: ["&lt;rootDir&gt;/tests"],
+  testMatch: ["**/*.test.ts"],
+  extensionsToTreatAsEsm: [".ts"],
+  transform: {
+    "^.+\\.ts$": [
+      "@swc/jest",
+      {
+        jsc: { parser: { syntax: "typescript" }, target: "es2023" },
+        module: { type: "es6" },
+      },
+    ],
+  },
+  silent: true,
+};</code></pre>
+        <ul>
+          <li><strong><code>roots</code> and <code>testMatch</code></strong>: look for <code>*.test.ts</code> files inside <code>tests/</code> only.</li>
+          <li><strong><code>extensionsToTreatAsEsm</code></strong>: treat <code>.ts</code> files as ES modules, like Node.js does for your project.</li>
+          <li><strong><code>transform</code></strong>: run every <code>.ts</code> file through <code>@swc/jest</code>. <code>module: { type: "es6" }</code> keeps <code>import</code> and <code>export</code> as they are, instead of rewriting them to <code>require</code>. That is what ESM mode needs.</li>
+          <li><strong><code>silent: true</code></strong>: hide <code>console.log</code> output. Your M05 request logger prints a line per request, and 40 tests would bury the results in logs. (<code>console.error</code> from a failing test still shows in the failure report.)</li>
+        </ul>
+        <p>The <code>.ts</code> import endings in your code (<code>from "./db.ts"</code>) work in Jest as they are, because Jest can find a file whose name is spelled out.</p>
+        <h3>2.3 The test script</h3>
+        <pre><code>npm pkg set scripts.test="node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand"</code></pre>
+        <ul>
+          <li><strong><code>node ... node_modules/jest/bin/jest.js</code></strong>: start Jest through <code>node</code> directly. This works the same on Windows, macOS and Linux, with no shell tricks.</li>
+          <li><strong><code>--experimental-vm-modules</code></strong>: the Node.js flag that lets Jest run ES modules. It prints an <code>ExperimentalWarning</code> each run. That is normal.</li>
+          <li><strong><code>--runInBand</code></strong>: run the test files one after the other, in one process. You will see why in section 3: every test file uses the same SQLite file, and SQLite lets one writer in at a time.</li>
+        </ul>
+        <h3>2.4 The first test</h3>
+        <p>Make the folder, then create the first test:</p>
+        <pre><code>mkdir tests</code></pre>
+        <p>Create <code>tests/health.test.ts</code>:</p>
+        <pre><code>import { describe, expect, it } from "@jest/globals";
+import request from "supertest";
+import { app } from "../src/app.ts";
+
+describe("GET /api/v1/health", () =&gt; {
+  it("answers 200 and { status: 'ok' }", async () =&gt; {
+    const res = await request(app).get("/api/v1/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: "ok" });
+  });
+});</code></pre>
+        <p><code>request(app).get(path)</code> sends the request, and <code>await</code> gives you the response: <code>res.status</code>, <code>res.headers</code>, <code>res.body</code> (the parsed JSON). Run it:</p>
+        <pre><code>npm test</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 test
+&gt; node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand
+
+(node:12345) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        0.3 s</code></pre>
+          <p>Your process number and timings differ. A green run ends with a summary like this: <strong>Tests: 1 passed</strong>. A failing test is printed in full above it.</p>
+        </div>
+        <h3>2.5 Practise the Jest basics</h3>
+        <p>Before the API tests, five minutes with the vocabulary from section 1.5, on plain functions where nothing else can go wrong. Create <code>tests/basics.test.ts</code>. <strong>You will delete it afterwards.</strong> Read each test, and guess whether it passes before you run it:</p>
+        <pre><code>import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+
+const add = (a: number, b: number) =&gt; a + b;
+
+function parsePort(value: string): number {
+  const port = Number(value);
+  if (Number.isNaN(port)) throw new Error(`Not a number: ${value}`);
+  return port;
+}
+
+async function fetchUser(id: number) {
+  if (id &lt; 0) throw new Error("bad id");
+  return { id, name: "Ada", roles: ["admin", "dev"] };
+}
+
+describe("matchers", () =&gt; {
+  it("compares one value with toBe", () =&gt; {
+    expect(add(2, 3)).toBe(5);
+  });
+
+  it("compares whole objects with toEqual", () =&gt; {
+    expect({ a: 1, b: [2, 3] }).toEqual({ a: 1, b: [2, 3] });
+  });
+
+  it("checks a subset with toMatchObject and objectContaining", () =&gt; {
+    const user = { id: 7, name: "Ada", createdAt: "2026-10-13" };
+
+    expect(user).toMatchObject({ name: "Ada" });
+    expect([user]).toEqual([expect.objectContaining({ name: "Ada" })]);
+    expect(user.id).toEqual(expect.any(Number));
+  });
+
+  it("works with async code", async () =&gt; {
+    const user = await fetchUser(1);
+
+    expect(user).toMatchObject({ name: "Ada" });
+    expect(user.roles).toContain("dev");
+  });
+
+  it("checks a rejected promise with rejects", async () =&gt; {
+    await expect(fetchUser(-1)).rejects.toThrow("bad id");
+  });
+
+  it("checks a thrown error with toThrow", () =&gt; {
+    expect(() =&gt; parsePort("abc")).toThrow("Not a number: abc");
+  });
+
+  it.each([
+    ["8080", 8080],
+    ["0", 0],
+    ["3000", 3000],
+  ])("parsePort(%s) is %i", (input, expected) =&gt; {
+    expect(parsePort(input)).toBe(expected);
+  });
+});
+
+describe("hooks and fakes", () =&gt; {
+  let count = 0;
+
+  beforeEach(() =&gt; {
+    count = 0; // runs before every test in this describe
+  });
+
+  it("starts at zero (first test)", () =&gt; {
+    count += 1;
+    expect(count).toBe(1);
+  });
+
+  it("starts at zero again (second test)", () =&gt; {
+    count += 1;
+    expect(count).toBe(1);
+  });
+
+  it("records the calls to jest.fn()", () =&gt; {
+    const greet = jest.fn((name: string) =&gt; `Hello, ${name}`);
+
+    greet("Ada");
+
+    expect(greet).toHaveBeenCalledTimes(1);
+    expect(greet).toHaveBeenCalledWith("Ada");
+    expect(greet).toHaveReturnedWith("Hello, Ada");
+  });
+});</code></pre>
+        <pre><code>npm test</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Test Suites: 2 passed, 2 total
+Tests:       13 passed, 13 total</code></pre>
+          <p>(Only the last lines are shown.) That is 1 health test plus 12 here, because <code>it.each</code> counts every row as its own test. Two things to try: change <code>toBe(5)</code> to <code>toBe(6)</code> and read the failure report, which shows the expected and received values and the line that failed. Then change it back. And notice that the two <code>count</code> tests both pass even though each adds 1: <code>beforeEach</code> reset it. <strong>Sharing state between tests and resetting it in <code>beforeEach</code> is exactly what you do with the database in section 3.</strong></p>
+        </div>
+        <p>Delete the practice file when you are done:</p>
+        <pre><code>rm tests/basics.test.ts</code></pre>
+        <h3>2.6 Type-check the tests too</h3>
+        <p>Open <code>tsconfig.json</code> and add <code>"tests"</code> to <code>include</code>, so <code>tsc</code> checks your tests as well as <code>src</code>:</p>
+        <pre><code>"include": ["src", "tests"]</code></pre>
+        <pre><code>npm run typecheck</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 typecheck
+&gt; tsc --noEmit</code></pre>
+          <p>No errors. If it complains about <code>describe</code>, <code>it</code> or <code>supertest</code>, check step 2.1 installed <code>@jest/globals</code> and <code>@types/supertest</code>.</p>
+        </div>
+        <div class="callout warn">
+          <p class="callout-title">If @swc/jest does not work on your machine</p>
+          <p>Jest 30, <code>@swc/jest</code>, TypeScript 7 and the Prisma-generated client is the least tried combination in this course, and this page was checked only on Linux with Node.js 24. If <code>npm test</code> fails with an error that is about loading or transforming a file (not a failing test), the programme's fallback list applies. Try them <strong>in this order, one at a time, never mixed</strong>: first <code>ts-jest</code> with its TypeScript 7 side-by-side setup, then TypeScript 6 for the test tooling only, and last compiling the project as CommonJS by removing <code>"type": "module"</code> from <code>package.json</code>. These three fallbacks are <strong>untested</strong> on this page. Write down which one you needed.</p>
+        </div>
+        <p>Commit this much:</p>
+        <pre><code>git add .
+git commit -m "test: add jest, supertest and a first health test"</code></pre>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 2</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c2-1"><label for="c2-1"><code>npm test</code> shows <code>Tests: 1 passed</code> for the health test, and <code>tests/basics.test.ts</code> is deleted.</label></li>
+            <li><input type="checkbox" id="c2-2"><label for="c2-2">You changed an expected value on purpose, read the failure, and changed it back.</label></li>
+            <li><input type="checkbox" id="c2-3"><label for="c2-3"><code>npm run typecheck</code> is clean with <code>tests</code> included.</label></li>
+            <li><input type="checkbox" id="c2-4"><label for="c2-4">You can say why <code>--runInBand</code> is in the script, and what <code>@swc/jest</code> does and does not do.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s3">
+        <h2><span class="num">3.</span>The test database <span class="time">45 min</span></h2>
+        <h3>3.1 Why tests need their own database</h3>
+        <p>Your tests will create tasks, change them and delete them. Run them against <code>data/app.db</code>, the database you develop with, and they would fill your real data with test rows, or worse, delete it. Worse still, a test could pass or fail because of rows an earlier test left behind. So the strategy has four rules:</p>
+        <ol>
+          <li><strong>A separate file</strong>, <code>data/test.db</code>, that only the tests use.</li>
+          <li><strong>The same schema</strong>, built by the same migrations as the real database. The tests run <code>prisma migrate deploy</code> (M07) once, before any test.</li>
+          <li><strong>Empty tables before every test</strong>, so no test depends on another.</li>
+          <li><strong>One process at a time</strong> (<code>--runInBand</code>), because all the test files share one SQLite file.</li>
+        </ol>
+        <h3>3.2 Point the tests at test.db</h3>
+        <p>Your code already reads the database address from <code>DATABASE_URL</code> (<code>src/db.ts</code> and <code>prisma7.config.ts</code>). So "use another database" only means "start with another <code>DATABASE_URL</code>". Create <code>.env.test</code> in the repo root:</p>
+        <pre><code>DATABASE_URL="file:./data/test.db"</code></pre>
+        <p>Unlike <code>.env</code>, this file holds no secret, so you <strong>do</strong> commit it: CI needs it too. (<code>data/</code> and <code>*.db</code> are already in your <code>.gitignore</code>, so <code>test.db</code> is never committed.) Now make the test script load it, with Node.js's own <code>--env-file</code> flag, as you did in M03:</p>
+        <pre><code>npm pkg set scripts.test="node --env-file=.env.test --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand"</code></pre>
+        <p>A value that is already set wins over <code>.env</code> files, so this is also why the Prisma tool, which loads <code>.env</code> through <code>dotenv</code>, still uses <code>test.db</code> when the tests run it.</p>
+        <h3>3.3 Build the schema once: globalSetup</h3>
+        <p>A Jest <strong>globalSetup</strong> file runs once, before the first test file. It is the place to run <code>prisma migrate deploy</code>, which applies your migrations to <code>test.db</code> and creates the file if it is missing. Create <code>tests/global-setup.js</code> (plain JavaScript: it runs before Jest's transform is ready):</p>
+        <pre><code>import { execSync } from "node:child_process";
+import { mkdirSync } from "node:fs";
+
+// Runs once, before any test file. DATABASE_URL already points at data/test.db,
+// because the npm script loads .env.test before it starts Jest.
+export default function globalSetup() {
+  // The tests delete every row, so refuse to run against anything but a test database.
+  if (!process.env.DATABASE_URL?.includes("test")) {
+    throw new Error("DATABASE_URL must point at a test database. Run the tests with npm test.");
+  }
+  mkdirSync("data", { recursive: true });
+  execSync("npx prisma@7 migrate deploy", { stdio: "inherit" });
+}</code></pre>
+        <p>The first <code>if</code> is a safety catch. If someone starts Jest by hand (<code>npx jest</code>) and forgets the env file, <code>DATABASE_URL</code> would be empty, <code>src/db.ts</code> would fall back to <code>data/app.db</code>, and the next step would wipe your development data. The catch stops that before anything runs. <code>migrate deploy</code> is the M07 command for "apply the migrations that exist and ask nothing", which is why it fits tests and CI.</p>
+        <h3>3.4 Empty the tables before every test</h3>
+        <p>Create the folder, then <code>tests/helpers/db.ts</code>:</p>
+        <pre><code>mkdir tests/helpers</code></pre>
+        <pre><code>import { prisma } from "../../src/db.ts";
+
+// Empty every table before each test. Order matters: a task points at a user,
+// so tasks go first. The task-tag link rows are removed together with the tasks and tags.
+export async function resetDb(): Promise&lt;void&gt; {
+  await prisma.task.deleteMany();
+  await prisma.tag.deleteMany();
+  await prisma.user.deleteMany();
+}
+
+export { prisma };</code></pre>
+        <p><strong>Why the order matters.</strong> The database has a foreign key: <code>Task.userId</code> points at a <code>User</code>. Delete users first and the database refuses (or, with <code>onDelete: SetNull</code>, changes your tasks behind your back). Delete the table that <em>points</em> (tasks) before the table that is <em>pointed at</em> (users). The tags and the link table between tasks and tags follow along. If you add a table later, put it in the right place in this list.</p>
+        <p>The helper re-exports <code>prisma</code>, so tests that need to look in the database import it from here. It is the same client the app uses (<code>src/db.ts</code>), reading the same <code>DATABASE_URL</code>.</p>
+        <h3>3.5 Factories: valid rows in one line</h3>
+        <p>Many tests start with "given a task". A <strong>factory</strong> builds a valid row and lets a test override only the field it cares about, so the test shows what matters and hides the rest. Create <code>tests/helpers/factories.ts</code>:</p>
+        <pre><code>import { prisma } from "./db.ts";
+import type { TaskStatus } from "../../src/generated/prisma/client.ts";
+
+let counter = 0;
+
+// A factory builds a valid row and lets a test override only what it cares about.
+// The counter keeps titles unique, because the title rule lives in the database.
+export async function makeTask(overrides: { title?: string; description?: string; status?: TaskStatus } = {}) {
+  counter += 1;
+  const title = overrides.title ?? `Task ${counter}`;
+  return prisma.task.create({
+    data: { ...overrides, title, titleKey: title.toLowerCase() },
+  });
+}</code></pre>
+        <p>It writes straight to the database with Prisma, not through the API, so a test that checks <code>GET /tasks/:id</code> does not depend on <code>POST /tasks</code> working. <code>titleKey</code> is the lower-case title from M07.</p>
+        <h3>3.6 Run the reset for every test, and disconnect at the end</h3>
+        <p>Create <code>tests/setup.ts</code>. Jest runs it before each test file when you list it as <code>setupFilesAfterEnv</code>:</p>
+        <pre><code>import { afterAll, beforeEach } from "@jest/globals";
+import { prisma, resetDb } from "./helpers/db.ts";
+
+// Runs for every test file, so each test starts from empty tables.
+beforeEach(resetDb);
+afterAll(() =&gt; prisma.$disconnect());</code></pre>
+        <p><code>beforeEach(resetDb)</code> is the "empty tables" rule. <code>afterAll(() =&gt; prisma.$disconnect())</code> closes the database connection when a test file ends, as <code>server.ts</code> does on shutdown. Now add the two keys to <code>jest.config.js</code>, after <code>silent</code>:</p>
+        <pre><code>  silent: true,
+  setupFilesAfterEnv: ["&lt;rootDir&gt;/tests/setup.ts"],
+  globalSetup: "&lt;rootDir&gt;/tests/global-setup.js",</code></pre>
+        <h3>3.7 Prove the isolation</h3>
+        <p>Create <code>tests/database.test.ts</code>. Two tests, written so that <strong>both pass only if the reset works</strong>, in whichever order they run:</p>
+        <pre><code>import { describe, expect, it } from "@jest/globals";
+import { prisma } from "./helpers/db.ts";
+import { makeTask } from "./helpers/factories.ts";
+
+describe("the test database", () =&gt; {
+  it("can hold rows during a test", async () =&gt; {
+    await makeTask();
+    await makeTask();
+
+    expect(await prisma.task.count()).toBe(2);
+  });
+
+  it("is empty again at the start of the next test", async () =&gt; {
+    expect(await prisma.task.count()).toBe(0);
+  });
+});</code></pre>
+        <pre><code>npm test</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>&gt; js-training@1.0.0 test
+&gt; node --env-file=.env.test --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand
+
+Loaded Prisma config from prisma7.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": SQLite database "test.db" at "file:./data/test.db"
+
+SQLite database test.db created at file:./data/test.db
+
+2 migrations found in prisma/migrations
+
+Applying migration `20261013011433_init`
+Applying migration `20261013011440_add_title_key`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20261013011433_init/
+    └─ migration.sql
+  └─ 20261013011440_add_title_key/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+(node:12345) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Test Suites: 2 passed, 2 total
+Tests:       3 passed, 3 total
+Snapshots:   0 total
+Time:        0.5 s</code></pre>
+          <p>Your migration names have your own dates. The first run creates <code>data/test.db</code>. Later runs say <code>No pending migrations to apply.</code> instead.</p>
+        </div>
+        <h3>3.8 Break it on purpose</h3>
+        <p>See what the reset is worth. In <code>tests/setup.ts</code>, put <code>//</code> in front of <code>beforeEach(resetDb);</code>, and run <code>npm test</code>. The second test fails, because the first one left two rows behind:</p>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>  ● the test database › is empty again at the start of the next test
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 2</code></pre>
+          <p>(Only the key lines.) Run it once more and the first test fails too, with a database error about a title that already exists, because the rows from the last run are still there. The result depends on what ran before and in which order. That is a <strong>flaky test</strong>, and shared state is its most common cause. Take the <code>//</code> away again, and check that <code>npm test</code> is green.</p>
+        </div>
+        <h3>3.9 Check the safety catch</h3>
+        <p>Start Jest the way the catch is meant to stop, without the env file:</p>
+        <pre><code>node --experimental-vm-modules node_modules/jest/bin/jest.js</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Error: Jest: Got error running globalSetup - .../tests/global-setup.js, reason: DATABASE_URL must point at a test database. Run the tests with npm test.</code></pre>
+          <p>Your path differs, and a stack trace follows. Nothing ran, and <code>data/app.db</code> was not touched.</p>
+        </div>
+        <div class="callout tip">
+          <p class="callout-title">One database file per worker</p>
+          <p><code>--runInBand</code> is the simple answer. The faster answer on a big suite is one database file per Jest worker, named from the <code>JEST_WORKER_ID</code> variable that Jest sets (<code>test-1.db</code>, <code>test-2.db</code>). This course keeps one file. Your suite takes about a second, so parallel workers would add complexity and save nothing.</p>
+        </div>
+        <p>Commit:</p>
+        <pre><code>git add .
+git commit -m "test: add a separate test database with reset helpers"</code></pre>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 3</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c3-1"><label for="c3-1"><code>data/test.db</code> exists, <code>npm test</code> is green with 3 tests, and <code>git status</code> does not list <code>test.db</code>.</label></li>
+            <li><input type="checkbox" id="c3-2"><label for="c3-2">You saw the second database test fail with the reset switched off, then fixed it.</label></li>
+            <li><input type="checkbox" id="c3-3"><label for="c3-3">The catch refused to run Jest without the env file, and <code>data/app.db</code> is untouched.</label></li>
+            <li><input type="checkbox" id="c3-4"><label for="c3-4">You can say why <code>resetDb</code> deletes tasks before users.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s4">
+        <h2><span class="num">4.</span>Supertest and the happy paths <span class="time">50 min</span></h2>
+        <h3>4.1 The shape of a Supertest call</h3>
+        <pre><code>const res = await request(app)
+  .post("/api/v1/tasks")        // method and path
+  .set("X-Request-Id", "abc")   // a header
+  .query({ page: 2 })           // ?page=2
+  .send({ title: "Write it" }); // a JSON body (sets Content-Type for you)
+
+res.status;   // 201
+res.headers;  // all lower-case names: res.headers["x-request-id"]
+res.body;     // the parsed JSON</code></pre>
+        <p><code>.get</code>, <code>.post</code>, <code>.patch</code> and <code>.delete</code> all work the same way, and <code>await</code> sends the request. Supertest does not throw on a <code>404</code> or <code>500</code>: you check <code>res.status</code> yourself, which is what lets you test error answers.</p>
+        <p>Supertest also has <code>request.agent(app)</code>, which remembers cookies between calls. The Task API does not use cookies, so you do not need it here. You will want it for sign-in in the capstone.</p>
+        <h3>4.2 One test per behaviour</h3>
+        <p>Each test below follows Arrange, Act, Assert, and checks the answer <strong>and</strong> what is left in the database, because a <code>201</code> with nothing saved is a bug. Create <code>tests/tasks.happy.test.ts</code>. Type the first test yourself so the pattern sinks in, then paste the rest:</p>
+        <pre><code>import { describe, expect, it } from "@jest/globals";
+import request from "supertest";
+import { app } from "../src/app.ts";
+import { prisma } from "./helpers/db.ts";
+import { makeTask } from "./helpers/factories.ts";
+
+describe("POST /api/v1/tasks", () =&gt; {
+  it("creates a task and answers 201", async () =&gt; {
+    const res = await request(app).post("/api/v1/tasks").send({ title: "Write the tests" });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ title: "Write the tests", status: "todo", tags: [] });
+    expect(res.body.id).toEqual(expect.any(String));
+    expect(await prisma.task.count()).toBe(1);
+  });
+
+  it("stores the optional fields and the tags", async () =&gt; {
+    const res = await request(app)
+      .post("/api/v1/tasks")
+      .send({ title: "Ship it", description: "Before Friday", status: "in_progress", tags: ["work", "urgent"] });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      description: "Before Friday",
+      status: "in_progress",
+      tags: ["urgent", "work"],
+    });
+  });
+});
+
+describe("GET /api/v1/tasks/:id", () =&gt; {
+  it("returns one task", async () =&gt; {
+    const task = await makeTask({ title: "Find me" });
+
+    const res = await request(app).get(`/api/v1/tasks/${task.id}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: task.id, title: "Find me", status: "todo" });
+  });
+});
+
+describe("GET /api/v1/tasks", () =&gt; {
+  it("returns an empty page when there are no tasks", async () =&gt; {
+    const res = await request(app).get("/api/v1/tasks");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ data: [], meta: { page: 1, pageSize: 20, total: 0, totalPages: 0 } });
+  });
+
+  it("returns every task, newest first by default", async () =&gt; {
+    await makeTask({ title: "First" });
+    await makeTask({ title: "Second" });
+
+    const res = await request(app).get("/api/v1/tasks");
+
+    expect(res.body.meta.total).toBe(2);
+    expect(res.body.data.map((t: { title: string }) =&gt; t.title)).toEqual(["Second", "First"]);
+  });
+});
+
+describe("PATCH /api/v1/tasks/:id", () =&gt; {
+  it("changes only the fields you send", async () =&gt; {
+    const task = await makeTask({ title: "Old title", description: "Keep me" });
+
+    const res = await request(app).patch(`/api/v1/tasks/${task.id}`).send({ title: "New title" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ title: "New title", description: "Keep me" });
+  });
+
+  it("replaces the tags when tags are sent", async () =&gt; {
+    const task = await makeTask();
+    await request(app).patch(`/api/v1/tasks/${task.id}`).send({ tags: ["a", "b"] });
+
+    const res = await request(app).patch(`/api/v1/tasks/${task.id}`).send({ tags: ["c"] });
+
+    expect(res.body.tags).toEqual(["c"]);
+  });
+});
+
+describe("DELETE /api/v1/tasks/:id", () =&gt; {
+  it("deletes the task and answers 204 with no body", async () =&gt; {
+    const task = await makeTask();
+
+    const res = await request(app).delete(`/api/v1/tasks/${task.id}`);
+
+    expect(res.status).toBe(204);
+    expect(res.body).toEqual({});
+    expect(await prisma.task.count()).toBe(0);
+  });
+});</code></pre>
+        <p>Things to notice:</p>
+        <ul>
+          <li><strong><code>toMatchObject</code></strong> checks the fields you name and ignores the rest. The response also has an <code>id</code> and two timestamps that change on every run, and the test does not care about them. <code>expect.any(String)</code> checks that the <code>id</code> is there without knowing its value.</li>
+          <li><strong>The factory is the Arrange step.</strong> <code>makeTask({ title: "Find me" })</code> shows the only detail the test depends on.</li>
+          <li><strong>The list test sorts by nothing</strong>, so it relies on the default order: newest first. A test that names its expectation ("newest first") catches the day someone changes the default.</li>
+          <li><strong>Reading the database back</strong> (<code>prisma.task.count()</code>) proves the change was saved, not just reported.</li>
+          <li><strong>Titles are unique</strong> (the M07 rule), so each factory call gets a different title.</li>
+        </ul>
+        <pre><code>npm test</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Test Suites: 3 passed, 3 total
+Tests:       11 passed, 11 total
+Snapshots:   0 total</code></pre>
+          <p>(Only the last lines are shown.) 1 health + 2 database + 8 here.</p>
+        </div>
+        <p>Commit:</p>
+        <pre><code>git add .
+git commit -m "test: cover the happy paths of every endpoint"</code></pre>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 4</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c4-1"><label for="c4-1"><code>npm test</code> shows <code>Tests: 11 passed</code>.</label></li>
+            <li><input type="checkbox" id="c4-2"><label for="c4-2">Every endpoint (create, read one, list, update, delete) has at least one test, and each one checks the database or the body.</label></li>
+            <li><input type="checkbox" id="c4-3"><label for="c4-3">You can say what <code>toMatchObject</code> ignores, and why that helps here.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>Error paths, list queries and middleware <span class="time">55 min</span></h2>
+        <p>The happy path is half the job. Most bugs live in what happens when something is wrong, so each of these tests pins down one promise your API makes. Three new files, each about one theme. Type one test from each, and paste the rest.</p>
+        <div class="callout note">
+          <p class="callout-title">Assert on the path, not the wording</p>
+          <p>The validation tests below check that <code>details</code> names the right <strong>field</strong> (<code>path</code>) and that every message is a string. They do not check the message text. The text is the part most likely to change later, and the field name is the contract.</p>
+        </div>
+        <h3>5.1 Errors: 400, 404 and 409</h3>
+        <p>Create <code>tests/tasks.errors.test.ts</code>. <code>it.each</code> runs one test body for every row of a table, so four kinds of bad input cost four lines:</p>
+        <pre><code>import { describe, expect, it } from "@jest/globals";
+import request from "supertest";
+import { app } from "../src/app.ts";
+import { prisma } from "./helpers/db.ts";
+import { makeTask } from "./helpers/factories.ts";
+
+describe("POST /api/v1/tasks errors", () =&gt; {
+  it.each([
+    ["a missing title", {}, "title"],
+    ["an empty title", { title: "" }, "title"],
+    ["a title that is not a string", { title: 42 }, "title"],
+    ["an unknown status", { title: "Ok", status: "later" }, "status"],
+  ])("rejects %s with 400 and details", async (_name, body, path) =&gt; {
+    const res = await request(app).post("/api/v1/tasks").send(body);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path, message: expect.any(String) })]),
+    );
+    expect(await prisma.task.count()).toBe(0);
+  });
+
+  it("rejects malformed JSON with 400", async () =&gt; {
+    const res = await request(app)
+      .post("/api/v1/tasks")
+      .set("Content-Type", "application/json")
+      .send('{"title": "oops"');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatchObject({ code: "BAD_REQUEST", message: "Request body is not valid JSON" });
+  });
+
+  it("rejects a duplicate title with 409, whatever the letter case", async () =&gt; {
+    await makeTask({ title: "Write docs" });
+
+    const res = await request(app).post("/api/v1/tasks").send({ title: "WRITE DOCS" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("CONFLICT");
+    expect(await prisma.task.count()).toBe(1);
+  });
+});
+
+describe("tasks that do not exist", () =&gt; {
+  it("GET answers 404 with the error envelope", async () =&gt; {
+    const res = await request(app).get("/api/v1/tasks/no-such-id");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("PATCH answers 404", async () =&gt; {
+    const res = await request(app).patch("/api/v1/tasks/no-such-id").send({ title: "x" });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("DELETE answers 404 when the task is already gone", async () =&gt; {
+    const res = await request(app).delete("/api/v1/tasks/no-such-id");
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("PATCH /api/v1/tasks/:id errors", () =&gt; {
+  it("rejects an invalid change with 400 and leaves the task alone", async () =&gt; {
+    const task = await makeTask({ title: "Stay" });
+
+    const res = await request(app).patch(`/api/v1/tasks/${task.id}`).send({ status: "later" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.details).toEqual([expect.objectContaining({ path: "status" })]);
+    expect(await prisma.task.findUnique({ where: { id: task.id } })).toMatchObject({ title: "Stay", status: "todo" });
+  });
+
+  it("rejects a rename to a title that is taken with 409", async () =&gt; {
+    await makeTask({ title: "Taken" });
+    const other = await makeTask({ title: "Free" });
+
+    const res = await request(app).patch(`/api/v1/tasks/${other.id}`).send({ title: "taken" });
+
+    expect(res.status).toBe(409);
+  });
+});</code></pre>
+        <ul>
+          <li><strong>A rejected request leaves no trace.</strong> The create tests check <code>prisma.task.count()</code> after the <code>400</code> and the <code>409</code>. An API that answers <code>400</code> but saves the row anyway is broken.</li>
+          <li><strong>Malformed JSON</strong> needs <code>.set("Content-Type", "application/json")</code> and a string body: <code>.send({...})</code> would always send valid JSON.</li>
+          <li><strong>The <code>404</code> for a missing id</strong> comes from Prisma error <code>P2025</code>, mapped in M07 by the central error handler. The test does not care how: it checks the promise the API makes.</li>
+        </ul>
+        <h3>5.2 The list endpoint: filter, search, sort, page</h3>
+        <p>Create <code>tests/tasks.list.test.ts</code>. The list query has the most options, so it has the most ways to be wrong. Each test sets up just enough rows to tell the options apart:</p>
+        <pre><code>import { describe, expect, it } from "@jest/globals";
+import request from "supertest";
+import { app } from "../src/app.ts";
+import { makeTask } from "./helpers/factories.ts";
+
+const titles = (body: { data: { title: string }[] }) =&gt; body.data.map((task) =&gt; task.title);
+
+describe("GET /api/v1/tasks query options", () =&gt; {
+  it("filters by status", async () =&gt; {
+    await makeTask({ title: "Open", status: "todo" });
+    await makeTask({ title: "Finished", status: "done" });
+
+    const res = await request(app).get("/api/v1/tasks").query({ status: "done" });
+
+    expect(titles(res.body)).toEqual(["Finished"]);
+  });
+
+  it("searches titles with q", async () =&gt; {
+    await makeTask({ title: "Buy milk" });
+    await makeTask({ title: "Write report" });
+
+    const res = await request(app).get("/api/v1/tasks").query({ q: "milk" });
+
+    expect(titles(res.body)).toEqual(["Buy milk"]);
+  });
+
+  it("sorts by title in either direction", async () =&gt; {
+    await makeTask({ title: "banana" });
+    await makeTask({ title: "apple" });
+    await makeTask({ title: "cherry" });
+
+    const asc = await request(app).get("/api/v1/tasks").query({ sort: "title", order: "asc" });
+    const desc = await request(app).get("/api/v1/tasks").query({ sort: "title", order: "desc" });
+
+    expect(titles(asc.body)).toEqual(["apple", "banana", "cherry"]);
+    expect(titles(desc.body)).toEqual(["cherry", "banana", "apple"]);
+  });
+
+  it("pages the results and reports the totals", async () =&gt; {
+    for (const title of ["a", "b", "c", "d", "e"]) await makeTask({ title });
+
+    const res = await request(app).get("/api/v1/tasks").query({ sort: "title", order: "asc", page: 2, pageSize: 2 });
+
+    expect(titles(res.body)).toEqual(["c", "d"]);
+    expect(res.body.meta).toEqual({ page: 2, pageSize: 2, total: 5, totalPages: 3 });
+  });
+
+  it.each([
+    ["status", { status: "later" }],
+    ["sort", { sort: "color" }],
+    ["order", { order: "sideways" }],
+    ["page", { page: 0 }],
+    ["pageSize", { pageSize: 1000 }],
+  ])("rejects a bad %s with 400 and details", async (path, query) =&gt; {
+    const res = await request(app).get("/api/v1/tasks").query(query);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.details).toEqual([expect.objectContaining({ path })]);
+  });
+});</code></pre>
+        <p>Two habits here. The small <code>titles</code> helper turns a response into a list of titles, so each assertion is one readable line. And every test asserts the <strong>whole order</strong> with <code>toEqual([...])</code> and not "contains", because "banana, apple, cherry" would otherwise pass a sort test.</p>
+        <h3>5.3 Middleware: request id, unknown routes, no leaked errors</h3>
+        <p>Create <code>tests/middleware.test.ts</code>. These are the promises from M05 that every request depends on:</p>
+        <pre><code>import { describe, expect, it, jest } from "@jest/globals";
+import request from "supertest";
+import { app } from "../src/app.ts";
+import { prisma } from "./helpers/db.ts";
+
+describe("middleware", () =&gt; {
+  it("gives every response an X-Request-Id header", async () =&gt; {
+    const res = await request(app).get("/api/v1/health");
+
+    expect(res.headers["x-request-id"]).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("reuses an X-Request-Id sent by the client", async () =&gt; {
+    const res = await request(app).get("/api/v1/health").set("X-Request-Id", "my-trace-id");
+
+    expect(res.headers["x-request-id"]).toBe("my-trace-id");
+  });
+
+  it("answers an unknown route with the 404 envelope", async () =&gt; {
+    const res = await request(app).get("/api/v1/nope");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatchObject({
+      code: "NOT_FOUND",
+      message: "Route GET /api/v1/nope not found",
+      requestId: res.headers["x-request-id"],
+    });
+  });
+
+  it("never leaks the message or stack of a bug", async () =&gt; {
+    // Boundary mock: make the database layer fail once, as if the disk broke.
+    jest.spyOn(prisma.task, "findUniqueOrThrow").mockRejectedValueOnce(new Error("secret failure at /srv/app/db.ts"));
+
+    const res = await request(app).get("/api/v1/tasks/any-id");
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatchObject({ code: "INTERNAL_ERROR", message: "Internal server error" });
+    expect(JSON.stringify(res.body)).not.toContain("secret");
+    expect(JSON.stringify(res.body)).not.toContain("stack");
+    expect(JSON.stringify(res.body)).not.toContain("/srv/app");
+  });
+});</code></pre>
+        <h3>5.4 When a mock is right</h3>
+        <p>The last test is the one place this module fakes something. A correct database never throws a surprise error on request, and you need one to prove the handler hides the details of a bug. <code>jest.spyOn(prisma.task, "findUniqueOrThrow")</code> replaces one method for one call with a version that throws. The rule is: <strong>fake at a boundary, only to cause something you cannot cause for real, and never to avoid using the database</strong>. Everything else in this suite uses the real one.</p>
+        <p>A spy stays in place after the test unless you undo it. Add this line to <code>jest.config.js</code>, after <code>silent</code>, so Jest restores every spy after each test:</p>
+        <pre><code>  silent: true,
+  restoreMocks: true,</code></pre>
+        <pre><code>npm test</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Test Suites: 6 passed, 6 total
+Tests:       35 passed, 35 total
+Snapshots:   0 total</code></pre>
+          <p>(Only the last lines are shown.) 11 from before, plus 11 error tests, 9 list tests and 4 middleware tests. If one fails, read the report: it shows the expected and the received value, and the line. Do not edit the test to match until you are sure which one is wrong, the test or the API.</p>
+        </div>
+        <p>Commit:</p>
+        <pre><code>git add .
+git commit -m "test: cover error paths, list queries and middleware"</code></pre>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 5</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c5-1"><label for="c5-1"><code>npm test</code> shows <code>Tests: 35 passed</code>.</label></li>
+            <li><input type="checkbox" id="c5-2"><label for="c5-2">Every error path has a test: <code>400</code> with <code>details</code>, malformed JSON, <code>404</code>, <code>409</code> (on create and on rename), and the unknown-route <code>404</code>.</label></li>
+            <li><input type="checkbox" id="c5-3"><label for="c5-3">Each rejected request test also checks that nothing was saved or changed.</label></li>
+            <li><input type="checkbox" id="c5-4"><label for="c5-4">You can say why the stack-trace test uses a mock when the rest of the suite does not.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s6">
+        <h2><span class="num">6.</span>Test-first: PATCH /tasks/:id/complete <span class="time">25 min</span></h2>
+        <h3>6.1 Red, green, refactor</h3>
+        <p>So far you wrote tests for code that already existed. <strong>Test-driven development</strong> (TDD) turns that around, in three short steps:</p>
+        <ol>
+          <li><strong>Red.</strong> Write a test for behaviour that does not exist yet, and watch it fail. A test you have never seen fail may be testing nothing.</li>
+          <li><strong>Green.</strong> Write the least code that makes it pass.</li>
+          <li><strong>Refactor.</strong> Tidy the code with the tests as your safety net, and keep them green.</li>
+        </ol>
+        <p>The new endpoint: <code>PATCH /api/v1/tasks/:id/complete</code> marks a task as <code>done</code> and returns it. Calling it on a task that is already done is fine and changes nothing. An unknown id gives <code>404</code>. Decide that <strong>before</strong> any code exists: that is the point.</p>
+        <h3>6.2 Red</h3>
+        <p>Create <code>tests/tasks.complete.test.ts</code>:</p>
+        <pre><code>import { describe, expect, it } from "@jest/globals";
+import request from "supertest";
+import { app } from "../src/app.ts";
+import { prisma } from "./helpers/db.ts";
+import { makeTask } from "./helpers/factories.ts";
+
+describe("PATCH /api/v1/tasks/:id/complete", () =&gt; {
+  it("marks the task done", async () =&gt; {
+    const task = await makeTask({ status: "in_progress" });
+
+    const res = await request(app).patch(`/api/v1/tasks/${task.id}/complete`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: task.id, status: "done" });
+    expect(await prisma.task.findUnique({ where: { id: task.id } })).toMatchObject({ status: "done" });
+  });
+
+  it("is safe to repeat on a task that is already done", async () =&gt; {
+    const task = await makeTask({ status: "done" });
+
+    const res = await request(app).patch(`/api/v1/tasks/${task.id}/complete`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("done");
+  });
+
+  it("answers 404 for a task that does not exist", async () =&gt; {
+    const res = await request(app).patch("/api/v1/tasks/no-such-id/complete");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatchObject({ code: "NOT_FOUND", message: "The requested record was not found" });
+  });
+});</code></pre>
+        <pre><code>npm test -- tests/tasks.complete</code></pre>
+        <p>Everything after <code>--</code> goes to Jest, here as a file name filter, so only this file runs.</p>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>  ● PATCH /api/v1/tasks/:id/complete › marks the task done
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 200
+    Received: 404
+
+  ● PATCH /api/v1/tasks/:id/complete › answers 404 for a task that does not exist
+
+    expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+      Object {
+        "code": "NOT_FOUND",
+    -   "message": "The requested record was not found",
+    +   "message": "Route PATCH /api/v1/tasks/no-such-id/complete not found",
+      }
+
+Tests:       3 failed, 3 total</code></pre>
+          <p>(Shortened.) That is <strong>red</strong>, and the right kind: the tests run and fail for the reason you expect. The route does not exist, so Express answers <code>404 Route ... not found</code>. Look at the last test. It would have <strong>passed</strong> if it only checked <code>status</code> is <code>404</code>, because the missing route also answers <code>404</code>. That is why it also checks the message of the real "task not found" error. A test that passes before the code exists is a test that proves nothing.</p>
+        </div>
+        <p>Commit the failing tests on their own. The history then shows the order you worked in:</p>
+        <pre><code>git add .
+git commit -m "test: add failing tests for completing a task"</code></pre>
+        <h3>6.3 Green</h3>
+        <p>Now the least code that works. In <code>src/services/tasks.ts</code>, add this at the end of the file:</p>
+        <pre><code>// Green, first try: the quickest thing that makes the tests pass
+export async function completeTask(id: string): Promise&lt;TaskView&gt; {
+  await prisma.task.update({ where: { id }, data: { status: "done" } });
+  return getTask(id);
+}</code></pre>
+        <p>In <code>src/routes/tasks.ts</code>, add the route <strong>above</strong> the <code>delete</code> route. It cannot clash with <code>PATCH /:id</code>, because <code>/:id</code> matches one path segment and this path has two:</p>
+        <pre><code>tasksRouter.patch("/:id/complete", async (req: Request&lt;{ id: string }&gt;, res: Response&lt;TaskView&gt;) =&gt; {
+  res.json(await tasks.completeTask(req.params.id));
+});</code></pre>
+        <pre><code>npm test -- tests/tasks.complete</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total</code></pre>
+          <p><strong>Green.</strong> An unknown id works because <code>update</code> throws Prisma's <code>P2025</code>, which your M07 handler already maps to <code>404</code>. You wrote no error handling at all.</p>
+        </div>
+        <h3>6.4 Refactor</h3>
+        <p>The green version works, but it makes two database calls and repeats what <code>updateTask</code> already does. Completing a task <em>is</em> an update. Replace <code>completeTask</code> with:</p>
+        <pre><code>// Refactor: completing a task is just an update, so reuse updateTask
+export function completeTask(id: string): Promise&lt;TaskView&gt; {
+  return updateTask(id, { status: "done" });
+}</code></pre>
+        <pre><code>npm test
+npm run typecheck</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Test Suites: 7 passed, 7 total
+Tests:       38 passed, 38 total</code></pre>
+          <p>(Plus a clean typecheck.) The same three tests still pass after the rewrite, which is what they are for: you changed how it works and can see that you did not change what it does.</p>
+        </div>
+        <p>Commit:</p>
+        <pre><code>git add .
+git commit -m "feat: add PATCH /tasks/:id/complete"</code></pre>
+        <div class="callout tip">
+          <p class="callout-title">What test-first changed</p>
+          <p>You decided the behaviour first: the status, the repeat call, the <code>404</code> message. And you saw the tests fail for the right reason before writing a line. Keep a note of what felt different from writing the tests after the code in section 5. That note is the "test-first" evidence the module asks for. Your commit history (<code>test: add failing tests...</code> before <code>feat: add ...</code>) is the other half.</p>
+        </div>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 6</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c6-1"><label for="c6-1">You saw the three new tests fail (<code>3 failed</code>) before you wrote any code, and committed them first.</label></li>
+            <li><input type="checkbox" id="c6-2"><label for="c6-2"><code>npm test</code> shows <code>Tests: 38 passed</code> and <code>npm run typecheck</code> is clean after the refactor.</label></li>
+            <li><input type="checkbox" id="c6-3"><label for="c6-3">You can explain why the <code>404</code> test checks the message, and not only the status.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s7">
+        <h2><span class="num">7.</span>Coverage, random order and flaky tests <span class="time">25 min</span></h2>
+        <h3>7.1 Measure what the tests run</h3>
+        <p><strong>Coverage</strong> counts which lines of your code ran while the tests ran. It cannot tell you the code is correct. It can tell you what no test ever touched. Tell Jest which files matter, and set a floor. Your <code>jest.config.js</code> should now look like this in full:</p>
+        <pre><code>/** @type {import('jest').Config} */
+export default {
+  testEnvironment: "node",
+  roots: ["&lt;rootDir&gt;/tests"],
+  testMatch: ["**/*.test.ts"],
+  extensionsToTreatAsEsm: [".ts"],
+  transform: {
+    "^.+\\.ts$": [
+      "@swc/jest",
+      {
+        jsc: { parser: { syntax: "typescript" }, target: "es2023" },
+        module: { type: "es6" },
+      },
+    ],
+  },
+  silent: true,
+  restoreMocks: true,
+  collectCoverageFrom: ["src/routes/**/*.ts", "src/services/**/*.ts"],
+  coverageThreshold: { global: { statements: 80, branches: 80, functions: 80, lines: 80 } },
+  setupFilesAfterEnv: ["&lt;rootDir&gt;/tests/setup.ts"],
+  globalSetup: "&lt;rootDir&gt;/tests/global-setup.js",
+};</code></pre>
+        <p><code>collectCoverageFrom</code> limits the report to the routes and the services, the code this module is about. <code>coverageThreshold</code> makes Jest <strong>fail</strong> the run if any figure drops under 80%, so coverage cannot quietly slide. Add two more scripts:</p>
+        <pre><code>npm pkg set scripts.test:coverage="node --env-file=.env.test --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --coverage"
+npm pkg set scripts.test:random="node --env-file=.env.test --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --randomize"</code></pre>
+        <pre><code>npm run test:coverage</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>-----------|---------|----------|---------|---------|-------------------
+File       | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-----------|---------|----------|---------|---------|-------------------
+All files  |     100 |      100 |     100 |     100 |
+ routes    |     100 |      100 |     100 |     100 |
+  tasks.ts |     100 |      100 |     100 |     100 |
+ services  |     100 |      100 |     100 |     100 |
+  tasks.ts |     100 |      100 |     100 |     100 |
+-----------|---------|----------|---------|---------|-------------------
+Test Suites: 7 passed, 7 total
+Tests:       38 passed, 38 total</code></pre>
+          <p>Your table should show 80% or more everywhere. This suite exercises almost every line, so you will likely see 100%. <strong>100% does not mean no bugs</strong>: it means every line ran, not that every outcome was checked. Use the "Uncovered Line #s" column the other way round. When it lists lines, you have found something no test tries.</p>
+        </div>
+        <p>Jest also wrote an HTML report in <code>coverage/</code> that you can open in a browser. It is already in your <code>.gitignore</code>.</p>
+        <h3>7.2 Random order</h3>
+        <p>Tests must not depend on each other. <code>--randomize</code> shuffles the order of the tests (and files) on every run, so a hidden dependency shows up as a failure:</p>
+        <pre><code>npm run test:random</code></pre>
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <pre><code>Seed:        1289845393
+Test Suites: 7 passed, 7 total
+Tests:       38 passed, 38 total</code></pre>
+          <p>Your seed differs. Run it three or four times: the seed changes and the suite stays green. If a run ever fails, rerun with the same order using <code>npm run test:random -- --seed=1289845393</code> (your number). Then <strong>fix the dependency</strong>. Do not stop using the flag. The usual cause is a test that relied on rows another test left behind, which is exactly what <code>resetDb</code> prevents.</p>
+        </div>
+        <h3>7.3 What makes a test flaky</h3>
+        <p>A <strong>flaky</strong> test passes and fails on the same code. Three causes cover most of them:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cause</th><th>Example here</th><th>Fix</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Shared state</strong></td><td>Rows left over from another test, or another test file running at the same moment on the same SQLite file</td><td><code>resetDb</code> before each test, <code>--runInBand</code></td></tr>
+              <tr><td><strong>Order</strong></td><td>A test that only passes after another has created the data it needs</td><td>Each test builds its own data with a factory. <code>--randomize</code> finds the rest</td></tr>
+              <tr><td><strong>Time</strong></td><td><code>createdAt</code> values equal to the millisecond, or a test that sleeps and hopes</td><td>Do not assert on exact times. Give the query a tie-breaker (your list adds <code>id</code> to the order). Never use a fixed <code>sleep</code> to wait for something</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>You can see the first cause for yourself. Run <code>node --env-file=.env.test --experimental-vm-modules node_modules/jest/bin/jest.js</code> once without <code>--runInBand</code>. In the run for this page, one test failed: two test files were using the one database at the same time, and one saw the other's rows. Run it a few times and the failures move around. That is what a flaky suite feels like, and why the script says <code>--runInBand</code>.</p>
+        <h3>7.4 Mocking in ES modules (read only)</h3>
+        <p>You used <code>jest.spyOn</code> on an object, which works as it is. Replacing a whole <strong>module</strong> is different. In CommonJS, <code>jest.mock("./file")</code> is moved to the top of the file, before the imports run. In ES modules every <code>import</code> runs first, so that cannot work. Jest's ESM answer is <code>jest.unstable_mockModule</code>: register the fake first, then load the thing that uses it with a dynamic <code>import</code>:</p>
+        <pre><code>import { jest } from "@jest/globals";
+
+jest.unstable_mockModule("../src/services/tasks.ts", () =&gt; ({
+  getTask: jest.fn(async () =&gt; ({ id: "1", title: "Fake" })),
+}));
+const { app } = await import("../src/app.ts");</code></pre>
+        <p>This is for your information: you do not need it in this suite, because the real database is the better fake. It is the right tool when a module talks to something you cannot run in a test, such as an email service or someone else's paid API. Mock at that boundary, and nowhere else.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 7</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c7-1"><label for="c7-1"><code>npm run test:coverage</code> passes, and routes and services are at 80% or more.</label></li>
+            <li><input type="checkbox" id="c7-2"><label for="c7-2"><code>npm run test:random</code> passed at least three times with different seeds.</label></li>
+            <li><input type="checkbox" id="c7-3"><label for="c7-3">You can name three causes of flaky tests and say which one <code>resetDb</code> and <code>--runInBand</code> remove.</label></li>
+          </ul>
+        </div>
+        <p>Commit:</p>
+        <pre><code>git add .
+git commit -m "test: add coverage thresholds and random-order script"</code></pre>
+      </section>
+
+      <section id="s8">
+        <h2><span class="num">8.</span>CI: GitHub Actions and the badge <span class="time">25 min</span></h2>
+        <p><strong>Continuous integration</strong> (CI) runs your checks on a clean machine every time you push, so "it works on my laptop" stops being the test. <strong>GitHub Actions</strong> is GitHub's CI. A workflow is a YAML file in <code>.github/workflows/</code>, and GitHub runs it for you.</p>
+        <div class="callout warn">
+          <p class="callout-title">Not run for this page</p>
+          <p>This section needs a real GitHub repository, so its steps are <strong>untested</strong> here. The commands and the workflow were checked locally another way: a fresh copy of the repo with no <code>.env</code>, running <code>npm ci</code>, <code>prisma generate</code>, <code>typecheck</code> and the tests, all passed. If something differs on GitHub, read the log on the failing step and use Troubleshooting.</p>
+        </div>
+        <h3>8.1 Push what you have</h3>
+        <p>Everything so far is on <code>main</code>, on your computer. Push it first, so the next change is a small pull request and not a copy of the whole module:</p>
+        <pre><code>git push</code></pre>
+        <h3>8.2 The workflow</h3>
+        <p>Start a branch, as in M01:</p>
+        <pre><code>git switch -c feat/m09-ci</code></pre>
+        <p>Create the folders and the workflow file:</p>
+        <pre><code>mkdir -p .github/workflows</code></pre>
+        <p>Create <code>.github/workflows/ci.yml</code>:</p>
+        <pre><code>name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx prisma@7 generate
+      - run: npm run typecheck
+      - run: npm run test:coverage</code></pre>
+        <ul>
+          <li><strong><code>on</code></strong>: run on every pull request, and on every push to <code>main</code>.</li>
+          <li><strong><code>runs-on: ubuntu-latest</code></strong>: a fresh Linux machine each time, with nothing of yours on it. That is the point.</li>
+          <li><strong><code>actions/checkout</code></strong> gets your code. <strong><code>actions/setup-node</code></strong> installs the Node.js version written in your <code>.nvmrc</code> (24) and caches npm's downloads.</li>
+          <li><strong><code>npm ci</code></strong>: a clean install exactly as <code>package-lock.json</code> says. It is stricter than <code>npm install</code>, and the right one for CI.</li>
+          <li><strong><code>npx prisma@7 generate</code></strong>: your generated client is not committed (M07), so CI must build it. Skip this and every test fails to import it.</li>
+          <li><strong><code>npm run typecheck</code></strong>, then <strong><code>npm run test:coverage</code></strong>: types first, then the tests with the 80% floor. Both must pass. The tests find their database through <code>.env.test</code>, which you committed.</li>
+        </ul>
+        <h3>8.3 The badge</h3>
+        <p>A badge on your <code>README.md</code> shows the state of the latest run. Add this line under the title, with your GitHub user name and repo name in place of <code>YOUR-USER</code> and <code>node-js-training</code>:</p>
+        <pre><code>[![CI](https://github.com/YOUR-USER/node-js-training/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR-USER/node-js-training/actions/workflows/ci.yml)</code></pre>
+        <h3>8.4 Open the pull request</h3>
+        <pre><code>git add .
+git commit -m "ci: run typecheck and tests on GitHub Actions"
+git push -u origin feat/m09-ci</code></pre>
+        <p>Open the pull request on GitHub as you did in M01 (the <strong>Compare &amp; pull request</strong> button). Scroll down to the checks, or open the <strong>Actions</strong> tab. Your run is listed as <code>CI</code>, first yellow (running), then green with a tick.</p>
+        <div class="expect">
+          <p class="expect-title">You should see (on the PR page)</p>
+          <pre><code>✓ All checks have passed
+  test (pull_request) — Successful in 1m</code></pre>
+          <p>A first run takes about a minute: the machine is fresh, so it installs everything. Wording and timing on your page may differ.</p>
+        </div>
+        <p>Once it is green, click <strong>Merge pull request</strong>, then bring your computer up to date, as in M01:</p>
+        <pre><code>git switch main
+git pull</code></pre>
+        <p>The badge on your README now turns green. <strong>To see CI do its job</strong>, make a second branch, break one assertion in a test, push it and open a pull request: the check goes red. Then close that PR without merging, and delete the branch. A check you have seen fail is a check you can trust.</p>
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 8</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c8-1"><label for="c8-1"><code>.github/workflows/ci.yml</code> and the README badge are merged into <code>main</code>.</label></li>
+            <li><input type="checkbox" id="c8-2"><label for="c8-2">The pull request showed a green <code>CI</code> check.</label></li>
+            <li><input type="checkbox" id="c8-3"><label for="c8-3">You can say why the workflow runs <code>prisma generate</code> and <code>npm ci</code>, and what each protects you from.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="check">
+        <h2>Check your understanding <span class="time">5 min</span></h2>
+        <p>Answer each one in your head, then open it to compare.</p>
+        <details>
+          <summary>Why does this suite use a real SQLite file and not a mock database, and what breaks if the tables are not emptied between tests?</summary>
+          <p>A mock only proves your code calls the mock the way you wrote it. A real database also proves the migrations, the SQL and the rules inside the database, such as the unique title that gives a <code>409</code>. A mock cannot break such a rule, so it cannot test it.</p>
+          <p>Without the reset, tests share rows. A test then passes or fails because of what an earlier test left behind, and the result changes with the order the tests run in: a flaky suite. <code>--randomize</code> would show it at once.</p>
+        </details>
+        <details>
+          <summary>A test passes the first time you run it, before you wrote the code. What does that tell you, and what do you do?</summary>
+          <p>It tells you the test proves nothing, or is not checking what you think. The <code>404</code> test for <code>/complete</code> is the example: a status check alone passes, because a missing route also answers <code>404</code>. Make the test stricter (here, check the error message), and watch it fail first. Only then write the code.</p>
+        </details>
+        <details>
+          <summary><code>--randomize</code> fails one run in ten. What is wrong, and what do you not do?</summary>
+          <p>Some test depends on state or order: it needs rows another test made, or it clashes with another test over the same data. Rerun with the same seed (<code>--seed=...</code>) to repeat the failure, find the test that assumes something it did not set up, and give it its own data with a factory. Do not drop <code>--randomize</code> or retry until it is green: that hides a real bug in the tests.</p>
+        </details>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <details>
+          <summary><code>node: .env.test: not found</code></summary>
+          <p>The test script loads <code>.env.test</code>, and it does not exist, or you ran <code>npm test</code> from another folder. Create <code>.env.test</code> in the repo root as in section 3.2 and run the command from the root.</p>
+        </details>
+        <details>
+          <summary><code>DATABASE_URL must point at a test database</code></summary>
+          <p>You started Jest without the script, so the env file was not loaded. That is the safety catch from section 3.3 doing its job. Run <code>npm test</code> (or <code>npm run test:coverage</code>, <code>npm run test:random</code>), and never plain <code>npx jest</code>.</p>
+        </details>
+        <details>
+          <summary><code>Test suite failed to run</code>, with a syntax error such as <code>Cannot use import statement</code> or <code>Unexpected token</code></summary>
+          <p>Jest read a <code>.ts</code> file without running it through <code>@swc/jest</code>. Check <code>jest.config.js</code> is in the repo root, has <code>export default</code>, and the <code>transform</code> key matches <code>.ts</code> files (section 2.2). Check <code>@swc/jest</code> and <code>@swc/core</code> are installed. If the error is inside the generated Prisma client, see the fallback list in section 2.6.</p>
+        </details>
+        <details>
+          <summary><code>Cannot find module '../src/generated/prisma/client.ts'</code>, or <code>@prisma/client did not initialize</code></summary>
+          <p>The Prisma client has not been generated. Run <code>npx prisma@7 generate</code>. You need it after every fresh clone and every schema change, and CI runs it too (section 8).</p>
+        </details>
+        <details>
+          <summary>A test fails with rows from another test, or the count is not what you expect</summary>
+          <p>The tables were not emptied. Check <code>tests/setup.ts</code> calls <code>beforeEach(resetDb)</code> and <code>jest.config.js</code> lists it under <code>setupFilesAfterEnv</code>. A leftover <code>data/test.db</code> from a broken run is harmless: delete it and run <code>npm test</code> to rebuild it from the migrations.</p>
+        </details>
+        <details>
+          <summary>Tests pass alone but fail together, or fail only sometimes</summary>
+          <p>Shared state or order (section 7.3). Run <code>npm run test:random -- --seed=&lt;number&gt;</code> with the seed from the failing run to repeat it. Check that every test builds its own data and that the script still has <code>--runInBand</code>.</p>
+        </details>
+        <details>
+          <summary><code>Jest: Coverage for statements (33%) does not meet "global" threshold (80%)</code></summary>
+          <p>Either too few tests ran (you filtered with a file name, so only some code was exercised), or real code has no tests. Run the whole suite with <code>npm run test:coverage</code> and read the <strong>Uncovered Line #s</strong> column.</p>
+        </details>
+        <details>
+          <summary><code>TS2307: Cannot find module</code> or errors about <code>describe</code>, <code>it</code> or <code>supertest</code> in <code>npm run typecheck</code></summary>
+          <p>Check <code>@jest/globals</code> and <code>@types/supertest</code> are installed (section 2.1) and that every test file imports <code>describe</code>, <code>it</code> and <code>expect</code> from <code>@jest/globals</code>. Local imports keep their <code>.ts</code> ending, like the rest of your code.</p>
+        </details>
+        <details>
+          <summary>The test for <code>/complete</code> gets <code>404</code> even after you added the route</summary>
+          <p>Check the route is registered in <code>src/routes/tasks.ts</code> (and the file is saved), that the path is exactly <code>"/:id/complete"</code>, and that you wrote <code>PATCH</code>, not <code>PUT</code>. A missing route answers <code>404 Route ... not found</code>, which is how you can tell this apart from a missing task.</p>
+        </details>
+        <details>
+          <summary>The workflow fails on GitHub but passes on your computer</summary>
+          <p>Open the failing step in the Actions log. The common causes: <code>npx prisma@7 generate</code> is missing from the workflow, <code>.env.test</code> was not committed (check <code>git status</code>, and that it is not in <code>.gitignore</code>), <code>package-lock.json</code> is not committed so <code>npm ci</code> fails, or a test relied on something only your machine has. Section 8 was not run for this page, so it is untested.</p>
+        </details>
+        <details>
+          <summary><code>better-sqlite3</code> fails to install on your machine or in CI</summary>
+          <p>See the same item in M07's troubleshooting: it downloads a ready-made binary and falls back to compiling, which needs build tools on your system. GitHub's <code>ubuntu-latest</code> has them.</p>
+        </details>
+        <details>
+          <summary><code>npm pkg set</code> or a Windows command does not work</summary>
+          <p>Use Git Bash on Windows, as in the rest of the course. The Jest commands in this module all go through <code>node</code>, so they do not depend on your shell.</p>
+        </details>
+      </section>
+
+      <section id="done">
+        <h2>You're done when</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="d1"><label for="d1">Jest 30, Supertest 7 and <code>@swc/jest</code> run your tests in ESM mode, and <code>npm run typecheck</code> includes the <code>tests</code> folder.</label></li>
+          <li><input type="checkbox" id="d2"><label for="d2">The tests use their own <code>data/test.db</code>, built by <code>prisma migrate deploy</code> in <code>globalSetup</code> and emptied before every test.</label></li>
+          <li><input type="checkbox" id="d3"><label for="d3">You have at least 25 integration tests (about 38) that cover every endpoint, and every error path: <code>400</code> with <code>details</code>, <code>404</code>, <code>409</code>, malformed JSON, and no stack trace leaked.</label></li>
+          <li><input type="checkbox" id="d4"><label for="d4"><code>npm run test:coverage</code> passes with 80% or more on the routes and services.</label></li>
+          <li><input type="checkbox" id="d5"><label for="d5"><code>npm run test:random</code> passes, more than once.</label></li>
+          <li><input type="checkbox" id="d6"><label for="d6"><code>PATCH /tasks/:id/complete</code> exists, and your history shows the failing test committed before the code.</label></li>
+          <li><input type="checkbox" id="d7"><label for="d7">A GitHub pull request showed a green <code>CI</code> check, and the badge is on your README.</label></li>
+          <li><input type="checkbox" id="d8"><label for="d8">Everything is committed and pushed to your repo.</label></li>
+        </ul>
+        <p><strong>Hand-off to M10.</strong> Keep <code>tests/</code>, <code>jest.config.js</code>, <code>.env.test</code> and <code>.github/workflows/ci.yml</code> as they are. They are your template: the capstone is a new API, and you copy this test setup into it. M08 is the next lesson, and its Zod validation replaces the hand-written checks. Because your tests check each error's field <code>path</code> and not its wording, they should keep passing, and if one fails after M08, that failure is the tests doing their job.</p>
+      </section>
+
+      <nav class="pager" aria-label="Module navigation">
+        <span>Previous: M08, Zod Validation &amp; Type Inference (coming soon).</span>
+        <a href="../../index.html">All modules</a>
+        <span>Next: M10, Capstone Project (coming soon).</span>
+      </nav>
+    </main>
+  </div>
+</body>
+</html>
