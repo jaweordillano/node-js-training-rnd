@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M10 — Capstone Project</title>
+  <meta name="description" content="The capstone project brief: build a complete, secured and tested REST API in a new domain on your own, with authentication, roles, a transaction proven under concurrent load, 25 or more tests and CI.">
+  <link rel="stylesheet" href="../../assets/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="layout">
+    <nav class="toc" aria-label="On this page">
+      <a class="back" href="../../index.html">&larr; All modules</a>
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#overview">Overview &amp; time plan</a></li>
+        <li><a href="#s1">1. Requirements, rubric and your domain</a></li>
+        <li><a href="#s2">2. Day 3: schema, ERD, migrations and skeleton</a></li>
+        <li><a href="#s3">3. Day 4: authentication and roles</a></li>
+        <li><a href="#s4">4. Day 4: routes, validation, errors and the business rule</a></li>
+        <li><a href="#s5">5. Day 4: prove the concurrency fix and write the tests</a></li>
+        <li><a href="#s6">6. Day 5: polish, CI, README and pull requests</a></li>
+        <li><a href="#check">Check your understanding</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#done">You're done when</a></li>
+      </ol>
+    </nav>
+
+    <main id="main">
+      <header class="doc-header">
+        <p class="eyebrow">Capstone M10 · Week 4 · Days 3-5 · about 12 hours</p>
+        <h1>Capstone Project</h1>
+        <p class="lede">Build a complete, secured and tested REST API on your own, in a domain you have not built before, using everything from M01 to M09. This page is a project brief, not a lesson: it tells you what to build and what proves it is done, and you work out how.</p>
+      </header>
+
+      <section id="overview">
+        <h2>Overview &amp; time plan</h2>
+        <p><strong>Builds on:</strong> M01 to M09. The capstone is a new API, not an extension of the Task API, but it uses the same stack and the same habits. Before you start, re-read your own notes and pages for M05 (Express and the error model), M07 (Prisma and migrations), M08 (Zod and <code>config.ts</code>) and M09 (the Jest and Supertest setup). They are your reference material, and there is no solution to copy. (On this page, "module" means the course lessons, M01 to M10.)</p>
+        <p><strong>Why there are no steps.</strong> Every earlier page gave you the code and the reasons. Here you make the decisions: the data model, the roles, the libraries and the order of work. That is the point. AI assistants make CRUD plus Prisma plus Zod plus tests quick to produce. What they cannot do for you is the judgment behind an auth design, or show you that a correctness claim holds under load. Those two things carry the most weight here.</p>
+        <p>You will:</p>
+        <ul>
+          <li>plan the work as <strong>GitHub Issues</strong> and design the schema and an ERD before you write code;</li>
+          <li>build an API with <strong>3 or more models</strong>, full CRUD for 2 resources, and a list endpoint with filtering, sorting and pagination;</li>
+          <li>add real <strong>authentication and authorization</strong>: registration, login, hashed passwords, tokens, two roles and rate-limiting on the auth endpoints;</li>
+          <li>enforce one <strong>business rule in a transaction</strong>, and prove with a script that it holds under concurrent requests;</li>
+          <li>write <strong>25 or more integration tests</strong> with <strong>80% or more coverage</strong> on routes and services;</li>
+          <li>ship it with a README, a Bruno collection and <strong>GitHub Actions</strong> CI, through at least 8 pull requests.</li>
+        </ul>
+        <p><strong>The pass rule.</strong> You pass with <strong>70 or more out of 100 points, and every must-have present</strong>. A missing must-have (for example the transaction, 25 tests or 3 migrations) fails the capstone even at 70 or more, so close every gap first.</p>
+        <p><strong>Stack.</strong> Node.js 24, Express 5, TypeScript 7 in strict mode, Prisma 7 on SQLite (always <code>npx prisma@7</code>), Zod 4, Jest 30 and Supertest 7. Free tools only, no Docker. A password-hashing library and a token library are the only new additions. You choose them, and you note your choice and its version in your README.</p>
+        <p>Time plan:</p>
+        <ol class="plan">
+          <li><a href="#s1">Requirements, rubric and your domain</a> <span class="time">60 min</span></li>
+          <li><a href="#s2">Day 3: schema, ERD, migrations and skeleton</a> <span class="time">150 min</span></li>
+          <li><a href="#s3">Day 4: authentication and roles</a> <span class="time">150 min</span></li>
+          <li><a href="#s4">Day 4: routes, validation, errors and the business rule</a> <span class="time">120 min</span></li>
+          <li><a href="#s5">Day 4: prove the concurrency fix and write the tests</a> <span class="time">120 min</span></li>
+          <li><a href="#s6">Day 5: polish, CI, README and pull requests</a> <span class="time">120 min</span></li>
+        </ol>
+        <div class="callout warn">
+          <p class="callout-title">If you run out of time</p>
+          <p>Cut in this order: extra endpoints first, then extra tests beyond 25, then README polish. Never cut a must-have. A small API that has every must-have beats a large one that is missing one.</p>
+        </div>
+        <div class="callout tip">
+          <p class="callout-title">How this page uses your time</p>
+          <p>Each day lists what to build, a checkpoint to compare against, and the evidence to keep. Where a task needs something you have not been taught, the page names what to research and gives no code. Your own earlier work is where to look first. Your process numbers, ids and dates will differ from any example. If something breaks, check <a href="#troubleshooting">Troubleshooting</a>.</p>
+        </div>
+      </section>
+
+      <section id="s1">
+        <h2><span class="num">1.</span>Requirements, rubric and your domain <span class="time">60 min</span></h2>
+
+        <h3>1.1 Pick a domain</h3>
+        <p>Choose one, or invent one with the same shape. You need <strong>two user roles</strong> with a real difference between them.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Domain</th><th>Core models</th><th>Two roles</th></tr></thead>
+            <tbody>
+              <tr><td>Library / Bookshelf</td><td>books, authors, loans</td><td>member, librarian</td></tr>
+              <tr><td>Expense Tracker</td><td>users, categories, expenses</td><td>regular user, admin</td></tr>
+              <tr><td>Event RSVP</td><td>events, attendees, registrations</td><td>attendee, organizer</td></tr>
+              <tr><td>Support Tickets</td><td>tickets, comments, labels</td><td>requester, agent</td></tr>
+              <tr><td>Recipe Book</td><td>recipes, ingredients, tags</td><td>contributor, admin</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Pick a domain you have not built before. Before you build anything, write two or three sentences in your README or notes: which domain, and why.</p>
+
+        <h3>1.2 What the rubric checks</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Criterion</th><th>Points</th><th>Must-have</th></tr></thead>
+            <tbody>
+              <tr><td>Functionality and business rule</td><td>15</td><td>3 or more models, including a 1:N and an M:N relation. Full CRUD for 2 or more resources. One list endpoint with filtering, sorting and pagination. One business rule enforced in a service inside a transaction, shown to hold under concurrent load</td></tr>
+              <tr><td>Testing quality and coverage</td><td>15</td><td>25 or more integration tests, including error paths and at least one test of the role-gated endpoint. 80% or more coverage on routes and services</td></tr>
+              <tr><td>Validation and error handling</td><td>10</td><td>Zod validation for body, params, query and env. A central error handler with one consistent error shape</td></tr>
+              <tr><td>Security and authorization</td><td>15</td><td>Registration and login with hashed passwords. A JWT or signed session cookie required on protected routes. 2 or more roles, with at least one endpoint whose behavior differs by role. Rate-limiting on the auth endpoints</td></tr>
+              <tr><td>Data layer and migrations</td><td>15</td><td>3 or more committed Prisma migrations and a seed script</td></tr>
+              <tr><td>TypeScript quality</td><td>10</td><td>Strict mode and zero <code>tsc --noEmit</code> errors</td></tr>
+              <tr><td>Git/GitHub workflow and CI</td><td>10</td><td>Issues, then feature branches, then 8 or more pull requests. Conventional Commits. GitHub Actions CI passing</td></tr>
+              <tr><td>Documentation</td><td>10</td><td>A README with setup steps, scripts, a Mermaid ERD and an endpoint list, and a committed Bruno collection</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Keep this table open while you work. You can tick off each must-have as you build it.</p>
+
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 1</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c1-1"><label for="c1-1">You have chosen a domain, and written down why.</label></li>
+            <li><input type="checkbox" id="c1-2"><label for="c1-2">You can name your two roles and one thing a role can do that the other cannot.</label></li>
+            <li><input type="checkbox" id="c1-3"><label for="c1-3">You can say which business rule needs a transaction, and what goes wrong without one.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s2">
+        <h2><span class="num">2.</span>Day 3: schema, ERD, migrations and skeleton <span class="time">150 min</span></h2>
+        <p><strong>Goal:</strong> a new project that starts, connects to its database and type-checks, with a plan in GitHub Issues.</p>
+        <ol class="steps">
+          <li><strong>Create the repo.</strong> Make a new repo for the capstone with the same conventions as <code>node-js-training</code> from M01: plain Git, a <code>.gitignore</code>, <code>.env.example</code>, <code>.nvmrc</code> for Node 24, and a README. (This is the one time the course asks for a second repo, because the capstone is a standalone API.) Make the first commit before anything else, so the history is clean from the start.</li>
+          <li><strong>Plan as Issues first.</strong> Create GitHub Issues for the work before you write code: for example schema, auth, each resource, the business rule, tests, CI and docs. You will branch from these and close them with your pull requests, so make them small enough for 8 or more.</li>
+          <li><strong>Design the schema.</strong> Sketch your models with at least one 1:N and one M:N relation, plus a <code>User</code> with a role. Write the ERD in <strong>Mermaid</strong> as you go. Your M06 and M07 pages show how to turn a design into Prisma.</li>
+          <li><strong>Create the first migrations.</strong> Install Prisma 7 (<code>@7</code>) and write your <code>schema.prisma</code>. Make at least <strong>3 committed migrations</strong> by growing the schema in steps (for example: users, then the core resources, then the join table), not by making one migration and splitting it afterwards. Add a <strong>seed script</strong>.</li>
+          <li><strong>Set up the skeleton.</strong> Express 5 and TypeScript 7 in strict mode, with the same layout as your Task API (<code>app.ts</code> that exports the app, <code>server.ts</code> that listens, routes, services, middleware). Copy the <strong><code>config.ts</code> validate-at-startup pattern</strong> from M08, and make every secret flow through it from the start.</li>
+          <li><strong>Copy your test setup.</strong> Bring over the Jest, <code>@swc/jest</code> and Supertest setup from M09, with the test database and the <code>DATABASE_URL</code> guard. Run one test to prove it works before you build anything on top.</li>
+          <li><strong>Add CI early.</strong> Copy your workflow from M09 so every pull request runs the checks from day one.</li>
+        </ol>
+
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 2</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c2-1"><label for="c2-1"><code>npx tsc --noEmit</code> reports zero errors, and <code>npx prisma@7 migrate status</code> says the database is up to date.</label></li>
+            <li><input type="checkbox" id="c2-2"><label for="c2-2">You can see 3 or more folders under <code>prisma/migrations</code> and a working <code>npm run seed</code>.</label></li>
+            <li><input type="checkbox" id="c2-3"><label for="c2-3">Your Issues exist, and your ERD renders on GitHub.</label></li>
+            <li><input type="checkbox" id="c2-4"><label for="c2-4"><code>npm test</code> runs at least one passing test.</label></li>
+          </ul>
+        </div>
+        <p>Commit with <code>git add .</code>, <code>git commit -m "..."</code> and <code>git push</code>, using Conventional Commits. From here, work on a branch per Issue and open a pull request for each.</p>
+      </section>
+
+      <section id="s3">
+        <h2><span class="num">3.</span>Day 4: authentication and roles <span class="time">150 min</span></h2>
+        <p>This is the first of the two new topics. Nothing in M01 to M09 covered it, so you research it as you would on a real team. Read the library's own documentation, and note your choices as you make them.</p>
+
+        <h3>What to build</h3>
+        <ul>
+          <li><strong>Register and login endpoints.</strong> Registration stores a user. Login checks the credentials and returns a token (or sets a cookie).</li>
+          <li><strong>Hashed passwords.</strong> Choose <strong>bcrypt or argon2</strong> and be ready to say why. A password must never be stored or logged as plain text, and a response must never include the hash.</li>
+          <li><strong>Protected routes.</strong> Choose <strong>a JWT or a signed session cookie</strong>, and be ready to say why. Build a middleware that rejects a request without a valid token, and attaches the user to the request for the routes behind it.</li>
+          <li><strong>Two roles with a real difference.</strong> At least one endpoint must behave differently by role. For example, only the librarian can delete a book, or only the agent can close a ticket. A cosmetic flag does not count: the wrong role must be <strong>blocked</strong>.</li>
+          <li><strong>Rate-limiting on the auth endpoints.</strong> Limit repeated attempts to register and log in. Other routes do not need it. Pick a small limit so you can see it trigger.</li>
+          <li><strong>The secret goes through <code>config.ts</code>.</strong> The signing secret is validated at startup, never hard-coded and never committed. <code>.env.example</code> shows its name, with no real value.</li>
+        </ul>
+
+        <h3>What to research</h3>
+        <ul>
+          <li>How a hash differs from encryption, and what a salt and a cost factor are.</li>
+          <li>What a JWT contains, what signing proves, and what it does not (a JWT is signed, not hidden).</li>
+          <li>Where each choice lives: a JWT you send in a header, or a signed cookie the browser sends for you, and what each risks.</li>
+          <li>Which HTTP status each failure deserves: <strong>401</strong> (we do not know who you are) and <strong>403</strong> (we know who you are, and you may not do this).</li>
+          <li>Why a login error should not say whether the email or the password was wrong.</li>
+        </ul>
+
+        <div class="expect">
+          <p class="expect-title">You should see</p>
+          <ul>
+            <li>A registration, then a login, then a protected route that answers <code>200</code> with the token and <code>401</code> without it.</li>
+            <li>The wrong role getting <code>403</code> on the role-gated endpoint, and the right role getting through.</li>
+            <li>Repeated logins from the same client eventually getting <code>429</code>.</li>
+          </ul>
+        </div>
+
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 3</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c3-1"><label for="c3-1">You can register and log in, and a database row shows a hash and not the password.</label></li>
+            <li><input type="checkbox" id="c3-2"><label for="c3-2">A protected route answers <code>401</code> with no token and <code>200</code> with one.</label></li>
+            <li><input type="checkbox" id="c3-3"><label for="c3-3">The wrong role is rejected with <code>403</code>, and the right role succeeds.</label></li>
+            <li><input type="checkbox" id="c3-4"><label for="c3-4">Repeated login attempts trigger <code>429</code>.</label></li>
+            <li><input type="checkbox" id="c3-5"><label for="c3-5"><code>config.ts</code> refuses to start without the secret, and the secret is in no committed file.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s4">
+        <h2><span class="num">4.</span>Day 4: routes, validation, errors and the business rule <span class="time">120 min</span></h2>
+        <p><strong>Goal:</strong> the API behind the auth, with the rules that make it correct.</p>
+        <ol class="steps">
+          <li><strong>Resources.</strong> Build full CRUD for 2 or more resources, and wire the M:N relation so a client can create and read it.</li>
+          <li><strong>One list endpoint</strong> with filtering, sorting and pagination. Use query parameters and validate them.</li>
+          <li><strong>Validate everything with Zod 4.</strong> Body, params and query, plus the environment (<code>config.ts</code>). Reject bad input with your consistent error shape.</li>
+          <li><strong>One central error handler</strong> with a single error shape for every failure, including auth failures (<code>401</code>, <code>403</code>, <code>429</code>) and Prisma errors you map, as you did in M05 and M07. No stack trace reaches the client.</li>
+          <li><strong>The business rule, in a service, inside a transaction.</strong> Choose a rule that depends on the current state of the database, such as "cannot loan a book with no copies left", "cannot register for a full event" or "cannot spend past a budget". Put the check and the write in one service function and one transaction. The route calls the service, and the route does no rule checking itself.</li>
+        </ol>
+
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 4</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c4-1"><label for="c4-1">Each resource has working create, read, update and delete, and the list endpoint filters, sorts and pages.</label></li>
+            <li><input type="checkbox" id="c4-2"><label for="c4-2">A bad body, bad id and bad query each return the same error shape with a <code>400</code>.</label></li>
+            <li><input type="checkbox" id="c4-3"><label for="c4-3">A broken rule returns a clear <code>409</code> (or your chosen status) from the service, and nothing is half-written.</label></li>
+          </ul>
+        </div>
+        <p>Commit and push on a branch, and open a pull request.</p>
+      </section>
+
+      <section id="s5">
+        <h2><span class="num">5.</span>Day 4: prove the concurrency fix and write the tests <span class="time">120 min</span></h2>
+
+        <h3>5.1 Prove the transaction prevents the race</h3>
+        <p>This is the second new topic. The rubric does not accept "I used a transaction". It wants <strong>evidence</strong> that, under parallel requests, the rule still holds.</p>
+        <p><strong>What the evidence must show:</strong> a <strong>before</strong> and an <strong>after</strong>.</p>
+        <ul>
+          <li><strong>Before.</strong> Fire many requests at the same contested resource at the same moment, against a version of your rule that checks and then writes <strong>without</strong> a correct transaction. Show that the rule breaks: for example, more loans than copies, or more registrations than seats.</li>
+          <li><strong>After.</strong> Run the same script against the correct transaction. Show the rule holds: exactly as many succeed as the rule allows, and the rest are rejected cleanly.</li>
+        </ul>
+        <p><strong>How to approach it</strong></p>
+        <ul>
+          <li>Write a small script (a Node script is enough) that sends N requests in parallel to the same resource, for example with <code>Promise.all</code> over N <code>fetch</code> calls, and then counts the outcomes and reads the final state.</li>
+          <li>Make the "before" version on purpose (a temporary branch is enough): a read, then a gap, then a write. If you cannot make the race appear, widen the gap between the read and the write, and increase N.</li>
+          <li>Keep the output. Paste both runs into your README or notes: the number of successes, the number of rejections and the final database state.</li>
+        </ul>
+        <p><strong>What to research:</strong> what a race condition is, why check-then-write is unsafe, and what your database guarantees inside a transaction (SQLite's locking is different from other databases, so say what you observed, not what you assume).</p>
+
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 5a</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c5-1"><label for="c5-1">You have a script that fires parallel requests at one resource.</label></li>
+            <li><input type="checkbox" id="c5-2"><label for="c5-2">The "before" output shows the rule broken, and the "after" output shows it holding.</label></li>
+            <li><input type="checkbox" id="c5-3"><label for="c5-3">Both outputs are saved somewhere you can show.</label></li>
+          </ul>
+        </div>
+
+        <h3>5.2 Tests</h3>
+        <p>Reuse your M09 setup and write <strong>25 or more integration tests</strong>:</p>
+        <ul>
+          <li>the happy path for each endpoint, and the error paths (<code>400</code>, <code>401</code>, <code>403</code>, <code>404</code>, <code>409</code>, <code>429</code> where you can);</li>
+          <li><strong>at least one test</strong> where the wrong role is rejected on the role-gated endpoint, and not only that the right role succeeds;</li>
+          <li>the business rule, including the case where it must refuse;</li>
+          <li>your validation and the error shape.</li>
+        </ul>
+        <p>Run <code>npm run test:coverage</code> (or your equivalent) and aim for <strong>80% or more on routes and services</strong>. Rate-limit tests can make other tests flaky, so check how your limiter behaves across tests, and make the limit configurable if you need to.</p>
+
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 5b</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c5-4"><label for="c5-4">You have 25 or more tests, all passing, and the tests include one for the wrong role.</label></li>
+            <li><input type="checkbox" id="c5-5"><label for="c5-5">Coverage on routes and services is 80% or more.</label></li>
+            <li><input type="checkbox" id="c5-6"><label for="c5-6"><code>npx tsc --noEmit</code> still reports zero errors.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="s6">
+        <h2><span class="num">6.</span>Day 5: polish, CI, README and pull requests <span class="time">120 min</span></h2>
+        <ol class="steps">
+          <li><strong>Check the Git workflow.</strong> You should have Issues, a branch per Issue, <strong>8 or more merged pull requests</strong> and Conventional Commits. If you are short on pull requests, split the remaining work into smaller branches, and not by opening empty ones.</li>
+          <li><strong>CI green.</strong> Your GitHub Actions workflow runs install, type-check and tests on every pull request, and the latest run passes.</li>
+          <li><strong>README.</strong> It must have setup steps, the scripts, the <strong>Mermaid ERD</strong>, an <strong>endpoint list</strong>, your hashing and token choices with versions, and the concurrency evidence from section 5.1.</li>
+          <li><strong>Bruno collection.</strong> Commit a collection for the API in <code>bruno/</code>, including login and a protected request.</li>
+          <li><strong>Final pass.</strong> Strict mode and zero <code>tsc --noEmit</code> errors. At least 3 migrations and a seed. No secret, <code>.env</code>, <code>*.db</code>, <code>node_modules/</code> or <code>dist/</code> committed. Run the whole project from a fresh clone, following only your own README, to be sure the setup steps are right.</li>
+        </ol>
+
+        <div class="checkpoint">
+          <p class="checkpoint-title">Checkpoint 6</p>
+          <ul class="checklist">
+            <li><input type="checkbox" id="c6-1"><label for="c6-1">The CI badge or latest run is green.</label></li>
+            <li><input type="checkbox" id="c6-2"><label for="c6-2">A fresh clone starts by following only your README.</label></li>
+            <li><input type="checkbox" id="c6-3"><label for="c6-3">Each rubric row's must-haves, in the table in section 1.2, are present in the repo.</label></li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="check">
+        <h2>Check your understanding</h2>
+        <p>Each prompt has a short note on what a good answer covers.</p>
+        <details>
+          <summary>1. Why is "I used a transaction" not enough to show a race is prevented?</summary>
+          <p>A transaction can still contain a check-then-write that interleaves with another request, depending on the database's locking and the isolation it gives you. The only proof is to reproduce the race without the fix, and then show it gone with the fix, under parallel load.</p>
+        </details>
+        <details>
+          <summary>2. Why <code>403</code> for the wrong role and <code>401</code> for no token?</summary>
+          <p><code>401</code> means the server does not know who you are (no or bad credentials). <code>403</code> means it knows you and you are not allowed. Mixing them hides which problem the client has.</p>
+        </details>
+        <details>
+          <summary>3. What is the trade-off between a JWT and a signed session cookie?</summary>
+          <p>A JWT is sent by the client in a header and is checked without a database lookup, but it is hard to revoke before it expires. A signed cookie is sent by the browser automatically, which suits browser clients and brings cookie-specific risks such as cross-site requests. Say which you chose and which risk you accepted.</p>
+        </details>
+        <details>
+          <summary>4. Why is the must-have list a gate on top of the 70 points?</summary>
+          <p>Points can add up to 70 while a required piece, such as the transaction or the tests, is absent. The gate makes sure the project proves the skills the program is about, and not just a good total.</p>
+        </details>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <details>
+          <summary><code>bcrypt</code> or <code>argon2</code> fails to install</summary>
+          <p>Both download a prebuilt binary and fall back to compiling, which needs build tools. On Windows install the build tools Node mentions, on macOS the Xcode command line tools, and on Linux <code>build-essential</code>. If it still fails, read the error for the missing tool, or try the other library. This is untested on every OS.</p>
+        </details>
+        <details>
+          <summary>Your server starts without a signing secret, or crashes with a Zod error about it</summary>
+          <p><code>config.ts</code> should fail fast when the secret is missing. Add it to your local <code>.env</code> (never committed) and to <code>.env.example</code> with a placeholder, and in CI set it as an environment variable or a repository secret. Use a different value for tests.</p>
+        </details>
+        <details>
+          <summary>You cannot reproduce the race</summary>
+          <p>Fire more requests, and make the gap between the read and the write wider in the "before" version (for example by awaiting a short delay between them). Also check that the requests are really sent in parallel and not one after another.</p>
+        </details>
+        <details>
+          <summary>The rate limiter makes other tests fail with <code>429</code></summary>
+          <p>Your auth tests share one counter. Reset the limiter between tests, make the limit configurable in <code>config.ts</code>, or use a high limit for the test environment and a low one only in the rate-limit test.</p>
+        </details>
+        <details>
+          <summary><code>npx prisma</code> behaves strangely or does not read <code>schema.prisma</code></summary>
+          <p>Always use <code>npx prisma@7</code>. An unversioned <code>npx prisma</code> can resolve to a later major version.</p>
+        </details>
+        <details>
+          <summary>Tests delete your development data</summary>
+          <p>Copy the <code>DATABASE_URL</code> guard from your M09 <code>globalSetup</code>, so tests refuse to run unless they point at the test database.</p>
+        </details>
+        <details>
+          <summary>CI fails on GitHub but passes locally</summary>
+          <p>Open the failing step. Usual causes: a missing <code>prisma generate</code> step, a secret or <code>.env.test</code> value not available in CI, or <code>package-lock.json</code> not committed. This is untested here, because it needs a real GitHub repository.</p>
+        </details>
+      </section>
+
+      <section id="done">
+        <h2>You're done when</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="d1"><label for="d1">You have a standalone API in a new domain, with 3 or more models, a 1:N and an M:N relation, full CRUD for 2 resources, and a list endpoint with filtering, sorting and pagination.</label></li>
+          <li><input type="checkbox" id="d2"><label for="d2">Registration and login work, passwords are hashed, protected routes need a token, and the wrong role is rejected.</label></li>
+          <li><input type="checkbox" id="d3"><label for="d3">Rate-limiting triggers on the auth endpoints, and the signing secret comes from <code>config.ts</code> and is not committed.</label></li>
+          <li><input type="checkbox" id="d4"><label for="d4">One business rule runs in a service inside a transaction, and your script shows the before and after under concurrent load.</label></li>
+          <li><input type="checkbox" id="d5"><label for="d5">You have 25 or more integration tests, including the role-gated endpoint, with 80% or more coverage on routes and services.</label></li>
+          <li><input type="checkbox" id="d6"><label for="d6">Zod validates body, params, query and env, and one central error handler returns one error shape.</label></li>
+          <li><input type="checkbox" id="d7"><label for="d7">You have 3 or more committed migrations, a seed script, strict TypeScript and zero <code>tsc --noEmit</code> errors.</label></li>
+          <li><input type="checkbox" id="d8"><label for="d8">You have 8 or more pull requests, Conventional Commits and a passing CI.</label></li>
+          <li><input type="checkbox" id="d9"><label for="d9">The README has setup steps, scripts, a Mermaid ERD and an endpoint list, and a Bruno collection is committed.</label></li>
+          <li><input type="checkbox" id="d10"><label for="d10">Everything is committed and pushed to your repo.</label></li>
+        </ul>
+        <p>This is the last stage of the course. When every box is ticked, you have finished.</p>
+      </section>
+
+      <nav class="pager" aria-label="Module navigation">
+        <a href="../m09-integration-testing/index.html">&larr; M09, Integration Testing with Jest + Supertest</a>
+        <a href="../../index.html">All modules</a>
+      </nav>
+    </main>
+  </div>
+</body>
+</html>
